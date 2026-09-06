@@ -1,4 +1,4 @@
-.PHONY: doctor build run test validate bridge-test ink ink-runtime ink-routes fennel-ink runtime-test check
+.PHONY: doctor build run test validate bridge-test ink ink-runtime ink-routes fennel-ink runtime-test check manifest
 
 FENNEL_SOURCES := layout save prolog ink spaces main
 
@@ -13,7 +13,11 @@ doctor:
 	@test -f node_modules/inkjs/bin/inkjs-compiler.js || { echo "missing: npm dependencies (npm ci)" >&2; exit 1; }
 	@echo "ondacase_doctor=pass"
 
-build: ink
+manifest:
+	@swipl -q -s logic/export_manifest.pl
+	@lua tools/build-case-manifest.lua
+
+build: ink manifest
 	@set -e; for name in $(FENNEL_SOURCES); do fennel -c "src/$$name.fnl" > "src/$$name.lua"; done
 	@luac -p main.lua src/*.lua
 	@echo "ondacase_build=pass"

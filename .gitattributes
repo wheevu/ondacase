@@ -1,0 +1,7 @@
+# Generated Lua is compiled from Fennel; keep it out of language stats and diffs.
+/src/*.lua linguist-generated=true
+/main.lua linguist-generated=true
+# The player-safe manifest is generated from Prolog case data.
+/cases/001-americano/case.json linguist-generated=true
+# The compiled Ink story is generated from story/*.ink.
+/story/main.json linguist-generated=true

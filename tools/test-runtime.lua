@@ -63,9 +63,17 @@ local prolog_stub={request=function(operation,payload)
     return {ok=true,contradictions={},inferences={}}
   elseif operation=="record_statement" then
     return {ok=true,contradictions={}}
+  elseif operation=="why_locked" then
+    if payload.evidence=="mira_statement" then
+      return {ok=true,evidence="mira_statement",locked=true,reason="need_receipt",reason_title="File Receipt #004 first."}
+    end
+    return {ok=true,evidence=payload.evidence,locked=false}
   elseif operation=="query_state" then
     local proven=unique_proof(evidence)
-    return {ok=true,contradictions=contains(evidence,"receipt_004") and contains(payload.known_statements,"mira_left_1910") and {{statement="mira_left_1910",evidence="receipt_004"}} or {},inferences=proven and {"arin_case_proven"} or {},inference_details=proven and {{fact="arin_case_proven",conclusion="The case against Arin meets the proof threshold",premises={}}} or {},knowledge={hypothesized={{id="arin",status="hypothesized"}},proven=proven and {{id="arin"}} or {}}}
+    local inferences={}
+    if contains(evidence,"pharmacy_footage") then inferences[#inferences+1]="arin_means" end
+    if proven then inferences[#inferences+1]="arin_case_proven" end
+    return {ok=true,contradictions=contains(evidence,"receipt_004") and contains(payload.known_statements,"mira_left_1910") and {{statement="mira_left_1910",evidence="receipt_004"}} or {},inferences=inferences,inference_details=proven and {{fact="arin_case_proven",conclusion="The case against Arin meets the proof threshold",premises={}}} or {},knowledge={hypothesized={{id="arin",status="hypothesized"}},proven=proven and {{id="arin"}} or {}}}
   elseif operation=="possible_alternatives" then
     return {ok=true,alternatives=unique_proof(evidence) and {{id="arin",name="Arin Ko"}} or {{id="arin",name="Arin Ko"},{id="mira",name="Mira Vale"}}}
   elseif operation=="accusation" then
@@ -166,6 +174,7 @@ window_w,window_h=720,720
 local evidence_count=0 for _ in pairs(ondacase_routes.evidence) do evidence_count=evidence_count+1 end assert(evidence_count==13)
 local statement_count=0 for _ in pairs(ondacase_routes.statements) do statement_count=statement_count+1 end assert(statement_count==7)
 runtime.discover("mira_statement"); assert(not st.evidence.mira_statement,"Mira follow-up must stay locked")
+assert(st.toast=="File Receipt #004 first.","locked evidence must explain itself")
 for _,id in ipairs({"receipt_004","camera_log","toxicology","cup_lid","jo_statement","panel_log","service_log","delivery_photo","pharmacy_footage","draft_email","sasha_voicemail"}) do runtime.discover(id) end
 for _,person in ipairs({"mira","arin","jo","sasha","dan"}) do runtime.open_interview(person) end
 runtime.apply_ink({ok=true,state="jo:2",text="JO: I thought it was Mira.",choices={},callbacks={},can_continue=false})
@@ -318,7 +327,8 @@ print("hero_screens_draw=pass")
 st.screen="people"; st.evidence={}; st.heard_statements={}; clear_render_logs(); love.draw()
 for _,secret in ipairs({"aconite","Departure time is wrong","debt","route has a gap"}) do assert(not text_contains(secret),"people screen leaked: "..secret) end
 assert(text_contains("Same table every Tuesday."),"neutral suspect note missing")
-st.evidence={pharmacy_footage=true,receipt_004=true}; st.heard_statements={mira_left_1910=true}; clear_render_logs(); love.draw()
+runtime.discover("pharmacy_footage"); runtime.discover("receipt_004"); runtime.record_statement("mira_left_1910")
+st.screen="people"; clear_render_logs(); love.draw()
 assert(text_contains("Bought aconite at 19:04") and text_contains("Register says 19:22"),"discovered notes did not update")
 print("people_secrecy=pass")
 

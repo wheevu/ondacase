@@ -4,6 +4,8 @@
 (local prolog (require :src.prolog))
 (local ink (require :src.ink))
 (local spaces (require :src.spaces))
+;; Case catalog generated from Prolog case data at build time.
+(local case-manifest (require :src.case_manifest))
 (local palette {:ink [0.89 0.87 0.79]
                 :paper [0.075 0.085 0.085]
                 :panel [0.12 0.14 0.145]
@@ -50,23 +52,28 @@
    {:id "panel_log" :title "PANEL LOG" :sub "Jo at till" :body "Till activity excludes Jo." :tag "EXCLUSION" :color :muted :discovered "Café till and panel log." :implication "Jo stayed at the till through the window." :status "Confirmed system log."}
    {:id "jo_statement" :title "JO'S STATEMENT" :sub "Person with cup 19:21" :body "Incomplete account." :tag "MISSING WITNESS" :color :gold :discovered "Interview note at the café." :implication "A familiar person was seen with the cup." :status "Claimed, incomplete."}])
 
-(local statement-ids ["mira_left_1910" "arin_cough_drops" "jo_saw_cup_1921" "jo_identified_mira" "sasha_never_argued" "dan_never_inside" "dan_route_recollection"])
+;; Statement ids come from the generated manifest; interview routing stays here.
+(local statement-ids case-manifest.statements)
+;; Location names, notes, and inspection routes come from the manifest.
+;; Keywords and manifest strings compare equal, so lookups keep working.
 (local location-data
-  {:cafe {:name "CAFÉ LANTERN" :note "The room is still open. Nobody is ordering anything."
-          :evidence [["receipt_004" "INSPECT RECEIPT #004"] ["camera_log" "CHECK CAMERA LOG"] ["toxicology" "READ TOXICOLOGY"] ["cup_lid" "INSPECT CUP LID"] ["jo_statement" "FILE JO'S ACCOUNT"] ["panel_log" "CHECK PANEL LOG"]]}
-   :alley {:name "SERVICE ALLEY" :note "Wet concrete, a staff door, and a route that keeps moving."
-           :evidence [["service_log" "CHECK SERVICE-DOOR LOG"] ["delivery_photo" "CHECK BIKE PHOTO"]]}
-   :store {:name "NIGHT STORE" :note "The pharmacy counter sees the bottle, the bag, and the time."
-           :evidence [["pharmacy_footage" "REVIEW PHARMACY FOOTAGE"]]}
-   :apartment {:name "ELI'S APARTMENT" :note "The desk holds the story Eli meant to publish."
-               :evidence [["draft_email" "OPEN DRAFT EMAIL"] ["sasha_voicemail" "PLAY SAVED VOICEMAIL"]]}})
+  (let [out {}]
+    (each [_ loc (ipairs case-manifest.locations)]
+      (let [routes []]
+        (each [_ route (ipairs loc.evidence)]
+          (table.insert routes [route.id route.label]))
+        (tset out loc.id {:name loc.name :note loc.note :evidence routes})))
+    out))
 
+;; Names and roles come from the manifest; portrait tones stay presentation.
+(local suspect-tones
+  {:mira [0.47 0.35 0.25] :arin [0.35 0.42 0.48] :jo [0.41 0.30 0.35] :sasha [0.33 0.43 0.34] :dan [0.45 0.38 0.30]})
 (local suspects
-  [{:id :mira :name "MIRA VALE" :role "café manager" :tone [0.47 0.35 0.25]}
-   {:id :arin :name "ARIN KO" :role "food columnist" :tone [0.35 0.42 0.48]}
-   {:id :jo :name "JO BELL" :role "barista" :tone [0.41 0.30 0.35]}
-   {:id :sasha :name "SASHA REED" :role "victim's ex" :tone [0.33 0.43 0.34]}
-   {:id :dan :name "DAN MOTT" :role "delivery rider" :tone [0.45 0.38 0.30]}])
+  (let [out []]
+    (each [_ person (ipairs case-manifest.people)]
+      (table.insert out {:id person.id :name (string.upper person.name) :role person.role
+                         :tone (or (. suspect-tones person.id) [0.4 0.4 0.4])}))
+    out))
 
 (local state {:screen :title
               :evidence {}
@@ -358,10 +365,17 @@
   (ruled! x y w))
 (fn has? [id] (not= (. state.evidence id) nil))
 
+;; Notes read Prolog-derived state, never re-derive it from raw evidence.
+(fn contradiction-on? [statement-id]
+  (var found false)
+  (each [_ c (ipairs state.contradictions)]
+    (when (= c.statement statement-id) (set found true)))
+  found)
+
 (fn suspect-note [id]
-  (if (= id :mira) (if (and (has? "receipt_004") (. state.heard_statements "mira_left_1910")) "Said 19:10. Register says 19:22. I kept both." "Ran the late shift. Says she left early."
+  (if (= id :mira) (if (contradiction-on? "mira_left_1910") "Said 19:10. Register says 19:22. I kept both." "Ran the late shift. Says she left early."
       )
-      (= id :arin) (if (has? "pharmacy_footage") "Bought aconite at 19:04. Camera saw the bottle." "Food columnist. Same table every Tuesday.")
+      (= id :arin) (if (. state.inferences "arin_means") "Bought aconite at 19:04. Camera saw the bottle." "Food columnist. Same table every Tuesday.")
       (= id :jo) "On till all evening. Saw a familiar hand with the cup, not the face."
       (= id :sasha) "Came after close to get her key. Did not stay long."
       (= id :dan) "Ran the alley route that night. Timing has to be checked."
@@ -507,7 +521,9 @@
           (tset state :clues (+ state.clues 1))
           (logic-sync)
           (toast! "Evidence added to your file."))
-        (toast! "Evidence is not available yet.")))))
+        (let [lock (logic-request :why_locked {:evidence id} (known-evidence id))]
+          (toast! (or (and lock lock.ok lock.locked lock.reason_title)
+                      "Evidence is not available yet.")))))))
 
 (fn record-statement! [id]
   (when (not (. state.heard_statements id))
@@ -521,6 +537,11 @@
 (fn known-ink-vars []
   (let [vars {}]
     (each [_ item (ipairs evidence-data)] (tset vars item.id (has? item.id)))
+    ;; Prolog-derived director flags. Ink may gate reactions on these.
+    (each [_ c (ipairs state.contradictions)]
+      (when c.statement (tset vars (.. "contradicts_" c.statement) true)))
+    (tset vars :contradiction_open (> (# state.contradictions) 0))
+    (tset vars :case_proven (= state.major_flags.unique_proof true))
     vars))
 
 (fn hear-from-text! [text]
@@ -871,21 +892,13 @@
         (add-button "Back" 60 580 100 30 (fn [] (tset state :screen :evidence)))
         (add-button "Theory" 170 580 100 30 (fn [] (tset state :screen :theory)))))))
 
+;; Timeline rows come from the manifest; visibility still needs filed records.
 (local timeline-defs
-  [{:time "18:52" :event "Sasha arrives to recover her apartment key" :requires [] :status "claimed"}
-   {:time "18:58" :event "Dan delivers café supplies" :requires [] :status "claimed"}
-   {:time "19:04" :event "Arin visits the night-store pharmacy counter" :requires ["pharmacy_footage"] :status "confirmed"}
-   {:time "19:16" :event "Jo opens the west-camera panel" :requires ["panel_log"] :status "confirmed"}
-   {:time "19:18" :event "West café camera goes offline" :requires ["camera_log"] :status "confirmed"}
-   {:time "19:19" :event "A delivery-bike photo places Dan in the alley" :requires ["delivery_photo"] :status "confirmed"}
-   {:time "19:21" :event "Jo sees a familiar person carrying Eli's cup" :requires ["jo_statement"] :status "claimed"}
-   {:time "19:22" :event "Mira makes an in-person purchase" :requires ["receipt_004"] :status "confirmed"}
-   {:time "19:23" :event "Mira sees Arin beside Eli's booth" :requires ["mira_statement"] :status "claimed"}
-   {:time "19:24" :event "Eli drinks the iced americano" :requires ["toxicology"] :status "confirmed"}
-   {:time "19:25" :event "Arin's borrowed tag exits through the service door" :requires ["service_log"] :status "confirmed"}
-   {:time "19:25-19:28" :event "Eli dies from aconite" :requires ["toxicology"] :status "confirmed"}
-   {:time "19:29" :event "West café camera returns" :requires ["camera_log"] :status "confirmed"}
-   {:time "19:34" :event "Jo finds Eli" :requires [] :status "confirmed"}])
+  (let [out []]
+    (each [_ row (ipairs case-manifest.timeline)]
+      (table.insert out {:time row.time :event row.event :status row.status
+                         :requires (or row.requires [])}))
+    out))
 
 (fn timeline-visible []
   (let [out []]
@@ -1622,10 +1635,15 @@
 
 ;; expose for tests
 (tset _G :ondacase_focus {:get (fn [] focus-index) :set (fn [v] (set focus-index v)) :count (fn [] (# focusable)) :hover (fn [] hover-index) :set_hover (fn [v] (set hover-index v))})
+;; Location routes come from the manifest; interview yields stay narrative wiring.
+(local route-evidence
+  (let [out {:tape_fiber :arin_interview :mira_statement :mira_interview}]
+    (each [_ loc (ipairs case-manifest.locations)]
+      (each [_ route (ipairs loc.evidence)]
+        (tset out route.id loc.id)))
+    out))
 (tset _G :ondacase_routes
-  {:evidence {:receipt_004 :cafe :camera_log :cafe :toxicology :cafe :cup_lid :cafe :jo_statement :cafe :panel_log :cafe
-              :service_log :alley :delivery_photo :alley :pharmacy_footage :store :draft_email :apartment :sasha_voicemail :apartment
-              :tape_fiber :arin_interview :mira_statement :mira_interview}
+  {:evidence route-evidence
    :statements {:mira_left_1910 :mira_interview :arin_cough_drops :arin_interview :jo_saw_cup_1921 :jo_interview
                 :jo_identified_mira :jo_interview :sasha_never_argued :sasha_interview :dan_never_inside :dan_interview
                 :dan_route_recollection :dan_interview}})

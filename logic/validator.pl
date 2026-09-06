@@ -1,6 +1,8 @@
 :- initialization(main, main).
 :- use_module(library(http/json)).
 :- use_module(case).
+:- use_module(case_data, []).
+:- use_module(manifest).
 :- dynamic validation_failure/1.
 :- dynamic manifest_file/1.
 :- prolog_load_context(directory, LogicDirectory),
@@ -15,6 +17,7 @@ main :-
     validate(hidden_truth_not_exported, hidden_truth_not_exported),
     validate(normalized_prolog_times, normalized_prolog_times),
     validate(manifest_matches_logic, manifest_matches_logic),
+    validate(manifest_matches_generated, manifest_matches_generated),
     validate(normalized_manifest_timeline, normalized_manifest_timeline),
     validate(all_evidence_reachable, all_evidence_reachable),
     validate(all_inferences_have_proofs, all_inferences_have_proofs),
@@ -31,6 +34,13 @@ main :-
     validate(ending_states, ending_states),
     validate(no_premature_proof, no_premature_proof),
     validate(minimum_proof_set, minimum_proof_set),
+    validate(every_ending_reachable, every_ending_reachable),
+    validate(no_useless_evidence, no_useless_evidence),
+    validate(every_statement_resolvable, every_statement_resolvable),
+    validate(discovery_order_independent, discovery_order_independent),
+    validate(every_accusation_explained, every_accusation_explained),
+    validate(explanation_titles_complete, explanation_titles_complete),
+    validate(no_redundant_core_evidence, no_redundant_core_evidence),
     findall(Name, validation_failure(Name), Failures),
     ( Failures == [] -> writeln('validator=pass'), halt(0)
     ; format('validator=FAIL failures=~w~n', [Failures]), halt(1)
@@ -116,6 +126,17 @@ manifest_evidence_valid(Entry) :-
     atom_string(ManifestTitle, LogicTitle),
     get_dict(supports, Entry, Supports),
     forall(member(Inference, Supports), case:inference(Inference)).
+
+% The checked-in manifest must equal the generated canonical manifest.
+% Comparison runs on canonical JSON so key order and whitespace cannot drift.
+manifest_matches_generated :-
+    manifest:manifest_dict(Generated),
+    canonical_json(Generated, Canonical),
+    read_manifest(FileDict),
+    canonical_json(FileDict, Canonical).
+
+canonical_json(Dict, Canonical) :-
+    with_output_to(atom(Canonical), json_write_dict(current_output, Dict, [width(0)])).
 
 normalized_manifest_timeline :-
     read_manifest(Dict),
@@ -257,3 +278,84 @@ minimum_proof_set :-
     discover_set(Core), \+ case:infer(arin_case_proven),
     forall(combination(2, Excls, Two), (append(Core, Two, E2), discover_set(E2), \+ case:infer(arin_case_proven))),
     forall(combination(3, Excls, Three), (append(Core, Three, E3), discover_set(E3), case:infer(arin_case_proven))).
+
+% Every manifest ending is producible. The decline-to-accuse ending is a
+% Fennel path covered by the runtime suite; Prolog owns the other four.
+every_ending_reachable :-
+    read_manifest(Dict),
+    get_dict(endings, Dict, [conviction, lucky_idiot, beautiful_theory, insufficient_evidence, everybody_goes_home]),
+    core_evidence(Core), discover_set(Core),
+    case:accusation(arin, evaluation(_, _, ending(lucky_idiot), _, _, _, _)),
+    discover_everything,
+    case:accusation(arin, evaluation(_, _, ending(conviction), _, _, _, _)),
+    case:clear_player,
+    case:accusation(sasha, evaluation(_, _, ending(insufficient_evidence), _, _, _, _)),
+    case:clear_player,
+    discover_set([receipt_004, camera_log, toxicology]),
+    case:accusation(mira, evaluation(_, _, ending(beautiful_theory), _, _, _, _)).
+
+% Every record either supports an inference or gates timeline progression.
+no_useless_evidence :-
+    expected_evidence(Evidence),
+    forall(member(Id, Evidence), evidence_contributes(Id)).
+
+evidence_contributes(Id) :- case_data:evidence_supports(Id, _).
+evidence_contributes(Id) :-
+    case_data:timeline_event(_, _, _, Requires), memberchk(Id, Requires).
+
+% Every heard statement resolves to a real classification, never bare uncertainty.
+every_statement_resolvable :-
+    findall(Statement, case:statement(Statement), Statements),
+    forall(member(Statement, Statements),
+        (discover_everything, case:record_statement(Statement),
+         case:statement_status(Statement, Status), Status \= uncertainty)).
+
+% Final knowledge must not depend on the order the player filed records.
+discovery_order_independent :-
+    expected_evidence(Evidence),
+    reverse(Evidence, Reversed),
+    discover_eventually(Evidence, Forward),
+    discover_eventually(Reversed, Backward),
+    discover_statements_first(Evidence, StatementsFirst),
+    Forward == Backward, Backward == StatementsFirst,
+    case:clear_player,
+    discover_eventually(Evidence, _),
+    case:infer(arin_case_proven).
+
+discover_eventually(EvidenceOrder, SortedInferences) :-
+    case:clear_player,
+    forall(member(Id, EvidenceOrder), (case:discover_evidence(Id) -> true ; true)),
+    forall(case:statement(Statement), case:record_statement(Statement)),
+    forall(member(Id, EvidenceOrder), (case:discover_evidence(Id) -> true ; true)),
+    findall(Inference, case:infer(Inference), Inferences),
+    sort(Inferences, SortedInferences).
+
+discover_statements_first(EvidenceOrder, SortedInferences) :-
+    case:clear_player,
+    forall(case:statement(Statement), case:record_statement(Statement)),
+    forall(member(Id, EvidenceOrder), (case:discover_evidence(Id) -> true ; true)),
+    forall(member(Id, EvidenceOrder), (case:discover_evidence(Id) -> true ; true)),
+    findall(Inference, case:infer(Inference), Inferences),
+    sort(Inferences, SortedInferences).
+
+% Every accusation verdict carries dimensions, alternatives, and gaps.
+every_accusation_explained :-
+    expected_people(People),
+    discover_everything,
+    forall(member(Suspect, People),
+        (case:accusation(Suspect, evaluation(_, _, ending(_),
+            dimensions(Dimensions), unsupported(_),
+            alternatives(Alternatives), ignored_contradictions(_))),
+         length(Dimensions, 3), length(Alternatives, 4))).
+
+% Every inference and contradiction reason has a display title.
+explanation_titles_complete :-
+    forall(case:inference(Name), case_data:inference_title(Name, _)),
+    discover_everything,
+    forall(case:contradiction(_, _, Reason), case_data:reason_title(Reason, _)).
+
+% Dropping any single core record breaks the proof threshold.
+no_redundant_core_evidence :-
+    core_evidence(Core),
+    forall((member(Dropped, Core), subtract(Core, [Dropped], Remaining)),
+        (discover_set(Remaining), \+ case:infer(arin_case_proven))).

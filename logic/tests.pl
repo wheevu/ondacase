@@ -421,4 +421,134 @@ test(server_possible_alternatives_json) :-
     assertion(Response.ok == true),
     assertion(is_list(Response.alternatives)).
 
+test(case_info_reports_manifest_metadata) :-
+    user:dispatch(_{operation:"case_info"}, Response),
+    assertion(Response.ok == true),
+    assertion(Response.id == '001-americano'),
+    assertion(Response.victim == eli),
+    assertion(member(cafe, Response.locations)),
+    assertion(Response.endings == [conviction, lucky_idiot, beautiful_theory, insufficient_evidence, everybody_goes_home]).
+
+test(timeline_visibility_follows_discovery) :-
+    case:clear_player,
+    user:dispatch(_{operation:"timeline"}, Empty),
+    assertion(Empty.ok == true),
+    \+ (member(Hidden, Empty.entries),
+        Hidden.event == "Mira makes an in-person purchase", Hidden.visible == true),
+    case:discover_evidence(receipt_004),
+    user:dispatch(_{operation:"timeline"}, Filed),
+    once((member(Shown, Filed.entries),
+        Shown.event == "Mira makes an in-person purchase", Shown.visible == true)).
+
+test(locked_evidence_explains_itself) :-
+    case:clear_player,
+    user:dispatch(_{operation:"why_locked", evidence:"mira_statement"}, MissingReceipt),
+    assertion(MissingReceipt.locked == true),
+    assertion(MissingReceipt.reason == need_receipt),
+    assertion(string(MissingReceipt.reason_title)),
+    case:discover_evidence(receipt_004),
+    user:dispatch(_{operation:"why_locked", evidence:"mira_statement"}, MissingConfrontation),
+    assertion(MissingConfrontation.reason == need_confrontation),
+    case:record_statement(mira_left_1910),
+    user:dispatch(_{operation:"why_locked", evidence:"mira_statement"}, Unlocked),
+    assertion(Unlocked.locked == false).
+
+test(available_evidence_excludes_locked_records) :-
+    case:clear_player,
+    user:dispatch(_{operation:"available_evidence"}, Response),
+    assertion(Response.ok == true),
+    findall(LockedId, (member(Entry, Response.evidence),
+        Entry.available == false, LockedId = Entry.id), Locked),
+    assertion(Locked == [mira_statement]).
+
+test(perform_inspect_matches_discover) :-
+    case:clear_player,
+    user:dispatch(_{operation:"perform", action:"inspect", evidence:"toxicology"}, Response),
+    assertion(Response.ok == true),
+    assertion(Response.performed.action == inspect),
+    assertion(Response.evidence == toxicology),
+    case:player_evidence(toxicology).
+
+test(perform_hear_matches_record) :-
+    case:clear_player,
+    user:dispatch(_{operation:"perform", action:"hear", statement:"dan_never_inside"}, Response),
+    assertion(Response.ok == true),
+    case:player_statement(dan_never_inside, heard).
+
+test(perform_rejects_unknown_actions) :-
+    user:dispatch(_{operation:"perform", action:"bribe", evidence:"toxicology"}, Response),
+    assertion(Response.error.code == unknown_operation).
+
+test(why_not_names_missing_premises) :-
+    case:clear_player,
+    case:discover_evidence(toxicology),
+    user:dispatch(_{operation:"why_not", fact:"arin_means"}, Response),
+    assertion(Response.status == blocked),
+    once((member(Missing, Response.missing),
+        Missing.id == pharmacy_footage, string(Missing.title))).
+
+test(why_not_reports_derivable_facts) :-
+    case:clear_player,
+    case:discover_evidence(toxicology),
+    user:dispatch(_{operation:"why_not", fact:"death_window_established"}, Response),
+    assertion(Response.status == derivable),
+    assertion(Response.missing == []).
+
+test(what_changed_tracks_evidence_consequences) :-
+    case:clear_player,
+    user:dispatch(_{operation:"what_changed", evidence:"toxicology"}, Before),
+    assertion(Before.ok == true),
+    once((member(Pending, Before.pending),
+        Pending.id == death_window_established)),
+    case:discover_evidence(toxicology),
+    user:dispatch(_{operation:"what_changed", evidence:"toxicology"}, After),
+    once((member(Derivable, After.derivable),
+        Derivable.id == death_window_established)).
+
+test(alternative_case_explains_missing_proof) :-
+    case:clear_player,
+    discover_all([receipt_004, camera_log, toxicology]),
+    user:dispatch(_{operation:"alternative_case", suspect:"mira"}, Response),
+    assertion(Response.ok == true),
+    assertion(Response.name == "Mira Vale"),
+    once((member(Unsupported, Response.unsupported),
+        is_list(Unsupported.missing))).
+
+test(board_reports_visible_and_locked_nodes) :-
+    case:clear_player,
+    case:discover_evidence(pharmacy_footage),
+    user:dispatch(_{operation:"board"}, Response),
+    assertion(Response.ok == true),
+    once((member(Visible, Response.nodes),
+        Visible.id == arin_means, Visible.status == visible)),
+    once((member(Locked, Response.nodes),
+        Locked.id == cup_lid, Locked.status == locked)).
+
+test(board_flags_active_contradictions) :-
+    case:clear_player,
+    case:discover_evidence(receipt_004),
+    case:record_statement(mira_left_1910),
+    user:dispatch(_{operation:"board"}, Response),
+    once((member(Node, Response.nodes),
+        Node.id == mira_conflict, Node.status == visible, Node.active == true)).
+
+test(named_api_covers_new_operations) :-
+    case:clear_player,
+    api:request(available_evidence, _, available(Available)),
+    assertion(\+ member(mira_statement, Available)),
+    api:request(board_state, _, board(Nodes)),
+    assertion(is_list(Nodes)),
+    case:discover_evidence(toxicology),
+    api:request(what_changed, toxicology, consequences(toxicology, Derivable, _)),
+    assertion(member(death_window_established, Derivable)).
+
+test(new_operations_do_not_serialize_hidden_truth) :-
+    complete_inventory,
+    forall(member(Request, [_{operation:"case_info"}, _{operation:"timeline"},
+            _{operation:"available_evidence"}, _{operation:"board"}]),
+        (user:dispatch(Request, Response),
+         term_string(Response, Text),
+         assertion(\+ sub_string(Text, _, _, _, "culprit")),
+         assertion(\+ sub_string(Text, _, _, _, "true_event")))).
+
 :- end_tests(case_001).

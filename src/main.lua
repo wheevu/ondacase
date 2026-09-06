@@ -3,6 +3,7 @@ local save_mod = require("src.save")
 local prolog = require("src.prolog")
 local ink = require("src.ink")
 local spaces = require("src.spaces")
+local case_manifest = require("src.case_manifest")
 local palette = {ink = {0.89, 0.87, 0.79}, paper = {0.075, 0.085, 0.085}, panel = {0.12, 0.14, 0.145}, ["panel-warm"] = {0.16, 0.15, 0.12}, ["panel-cool"] = {0.13, 0.17, 0.18}, line = {0.36, 0.4, 0.4}, ["line-warm"] = {0.46, 0.43, 0.33}, rust = {0.76, 0.48, 0.35}, gold = {0.73, 0.63, 0.43}, muted = {0.61, 0.65, 0.64}, green = {0.51, 0.69, 0.57}, red = {0.76, 0.48, 0.35}, dust = {0.6, 0.65, 0.68}, ["paper-light"] = {0.1, 0.12, 0.12}}
 local W = layout.W
 local H = layout.H
@@ -20,9 +21,28 @@ local capture_path = os.getenv("ONDACASE_CAPTURE_PATH")
 local capture_done = false
 local capture_requested = false
 local evidence_data = {{id = "receipt_004", title = "RECEIPT 004", sub = "Iced americano / 19:22", body = "In-person purchase. Paid with Mira's card.", tag = "PLACES MIRA", color = "gold", discovered = "Found at the caf\195\169 register.", implication = "Mira was present at 19:22.", status = "Confirmed purchase record."}, {id = "camera_log", title = "CAMERA LOG", sub = "Blind spot / 19:18-19:29", body = "West camera offline eleven minutes.", tag = "CREATES OPPORTUNITY", color = "rust", discovered = "Caf\195\169 security panel.", implication = "A gap covered the poisoning window.", status = "Confirmed system log."}, {id = "toxicology", title = "TOXICOLOGY", sub = "Aconite / 19:25-19:28", body = "Poison in drink, not food.", tag = "ESTABLISHES METHOD", color = "green", discovered = "Lab report at the caf\195\169.", implication = "The drink was the delivery method.", status = "Confirmed lab result."}, {id = "pharmacy_footage", title = "PHARMACY FOOTAGE", sub = "Arin / 19:04 / aconite", body = "Arin bought aconite tincture.", tag = "LINKS ARIN TO POISON", color = "rust", discovered = "Night-store counter camera.", implication = "Arin obtained the poison used.", status = "Confirmed footage."}, {id = "cup_lid", title = "CUP LID", sub = "Cleaned badly", body = "Wiped lid, residue under rim.", tag = "PHYSICAL CONTRADICTION", color = "green", discovered = "Evidence table at the caf\195\169.", implication = "The cup was wiped to hide residue.", status = "Confirmed physical exam."}, {id = "tape_fiber", title = "BLUE TAPE FIBER", sub = "Fiber beneath lid", body = "Matches tape on Arin's finger.", tag = "CONTACT", color = "green", discovered = "Lab analysis of the lid.", implication = "Points to Arin's contact with the lid.", status = "Confirmed fiber match."}, {id = "draft_email", title = "DRAFT EMAIL", sub = "Eli / scheduled", body = "Article on Arin's review fraud.", tag = "MOTIVE", color = "gold", discovered = "Eli's apartment desk.", implication = "Arin had a reason to stop publication.", status = "Confirmed draft."}, {id = "service_log", title = "SERVICE LOG", sub = "Tag exit 19:25", body = "Borrowed tag opens service door.", tag = "OPPORTUNITY", color = "gold", discovered = "Service alley reader.", implication = "Arin's exit overlaps the death window.", status = "Confirmed door log."}, {id = "mira_statement", title = "MIRA STATEMENT", sub = "Saw Arin at 19:23", body = "Mira saw Arin beside booth.", tag = "EXCLUSION", color = "gold", discovered = "Confront Mira after the receipt.", implication = "Mira's correction shifts suspicion from herself.", status = "Claimed follow-up."}, {id = "delivery_photo", title = "DELIVERY PHOTO", sub = "Dan / 19:19", body = "Photo + tracker exclude Dan.", tag = "EXCLUSION", color = "muted", discovered = "Alley and tracker review.", implication = "Dan was not inside at the critical time.", status = "Confirmed image and tracker."}, {id = "sasha_voicemail", title = "SASHA VOICEMAIL", sub = "Live call 19:20-19:27", body = "Covers death window.", tag = "EXCLUSION", color = "muted", discovered = "Eli's apartment phone.", implication = "Sasha was on a live call outside.", status = "Confirmed call log."}, {id = "panel_log", title = "PANEL LOG", sub = "Jo at till", body = "Till activity excludes Jo.", tag = "EXCLUSION", color = "muted", discovered = "Caf\195\169 till and panel log.", implication = "Jo stayed at the till through the window.", status = "Confirmed system log."}, {id = "jo_statement", title = "JO'S STATEMENT", sub = "Person with cup 19:21", body = "Incomplete account.", tag = "MISSING WITNESS", color = "gold", discovered = "Interview note at the caf\195\169.", implication = "A familiar person was seen with the cup.", status = "Claimed, incomplete."}}
-local statement_ids = {"mira_left_1910", "arin_cough_drops", "jo_saw_cup_1921", "jo_identified_mira", "sasha_never_argued", "dan_never_inside", "dan_route_recollection"}
-local location_data = {cafe = {name = "CAF\195\137 LANTERN", note = "The room is still open. Nobody is ordering anything.", evidence = {{"receipt_004", "INSPECT RECEIPT #004"}, {"camera_log", "CHECK CAMERA LOG"}, {"toxicology", "READ TOXICOLOGY"}, {"cup_lid", "INSPECT CUP LID"}, {"jo_statement", "FILE JO'S ACCOUNT"}, {"panel_log", "CHECK PANEL LOG"}}}, alley = {name = "SERVICE ALLEY", note = "Wet concrete, a staff door, and a route that keeps moving.", evidence = {{"service_log", "CHECK SERVICE-DOOR LOG"}, {"delivery_photo", "CHECK BIKE PHOTO"}}}, store = {name = "NIGHT STORE", note = "The pharmacy counter sees the bottle, the bag, and the time.", evidence = {{"pharmacy_footage", "REVIEW PHARMACY FOOTAGE"}}}, apartment = {name = "ELI'S APARTMENT", note = "The desk holds the story Eli meant to publish.", evidence = {{"draft_email", "OPEN DRAFT EMAIL"}, {"sasha_voicemail", "PLAY SAVED VOICEMAIL"}}}}
-local suspects = {{id = "mira", name = "MIRA VALE", role = "caf\195\169 manager", tone = {0.47, 0.35, 0.25}}, {id = "arin", name = "ARIN KO", role = "food columnist", tone = {0.35, 0.42, 0.48}}, {id = "jo", name = "JO BELL", role = "barista", tone = {0.41, 0.3, 0.35}}, {id = "sasha", name = "SASHA REED", role = "victim's ex", tone = {0.33, 0.43, 0.34}}, {id = "dan", name = "DAN MOTT", role = "delivery rider", tone = {0.45, 0.38, 0.3}}}
+local statement_ids = case_manifest.statements
+local location_data
+do
+  local out = {}
+  for _, loc in ipairs(case_manifest.locations) do
+    local routes = {}
+    for _0, route in ipairs(loc.evidence) do
+      table.insert(routes, {route.id, route.label})
+    end
+    out[loc.id] = {name = loc.name, note = loc.note, evidence = routes}
+  end
+  location_data = out
+end
+local suspect_tones = {mira = {0.47, 0.35, 0.25}, arin = {0.35, 0.42, 0.48}, jo = {0.41, 0.3, 0.35}, sasha = {0.33, 0.43, 0.34}, dan = {0.45, 0.38, 0.3}}
+local suspects
+do
+  local out = {}
+  for _, person in ipairs(case_manifest.people) do
+    table.insert(out, {id = person.id, name = string.upper(person.name), role = person.role, tone = (suspect_tones[person.id] or {0.4, 0.4, 0.4})})
+  end
+  suspects = out
+end
 local state = {screen = "title", evidence = {}, clues = 0, ending = nil, accused = "arin", accusation = {suspect = "arin", motive = {}, method = {}, opportunity = {}, evidence = {}}, accusation_mode = "evidence", location = "cafe", toast = nil, toast_time = 0, current_person = "arin", ink_text = nil, ink_choices = {}, settings = {reducedMotion = false}, ink_state = nil, contradictions = {}, inferences = {}, inferred_facts = {}, alternatives = {}, proof_data = {}, ending_report = nil, dialogue_page = 1, inspected_objects = {}, visited_locations = {cafe = true}, heard_statements = {}, conversation_branches = {}, hypotheses = {}, timeline_entries = {}, presented_evidence = {}, accusation_attempts = {}, major_flags = {}, focus = 1, evidence_page = 1, evidence_detail = nil, prev_screen = nil, contradiction_seen = {}, timeline_page = 1, theory = {suspect = "arin", motive = {}, method = {}, opportunity = {}, evidence = {}, mode = "evidence"}, theory_report_page = 1, active_proof = nil, contradiction = false, ink_can_continue = false, logic_online = false}
 local ui = {shadow = 4, hair = 1}
 local console = {paper = palette.paper, panel = palette.panel, edge = palette.line, ink = palette.ink, muted = palette.muted, sodium = palette.gold}
@@ -325,15 +345,25 @@ end
 local function has_3f(id)
   return (state.evidence[id] ~= nil)
 end
+local function contradiction_on_3f(statement_id)
+  local found = false
+  for _, c in ipairs(state.contradictions) do
+    if (c.statement == statement_id) then
+      found = true
+    else
+    end
+  end
+  return found
+end
 local function suspect_note(id)
   if (id == "mira") then
-    if (has_3f("receipt_004") and state.heard_statements.mira_left_1910) then
+    if contradiction_on_3f("mira_left_1910") then
       return "Said 19:10. Register says 19:22. I kept both."
     else
       return "Ran the late shift. Says she left early."
     end
   elseif (id == "arin") then
-    if has_3f("pharmacy_footage") then
+    if state.inferences.arin_means then
       return "Bought aconite at 19:04. Camera saw the bottle."
     else
       return "Food columnist. Same table every Tuesday."
@@ -500,13 +530,13 @@ local function add_button(label, x, y, w, h, action, kind)
     love.graphics.line((x + 7), (y + (h / 2) + -4), (x + 11), (y + (h / 2)), (x + 7), (y + (h / 2) + 4))
   else
   end
-  local _35_
+  local _36_
   if cursor then
-    _35_ = 13
+    _36_ = 13
   else
-    _35_ = 11
+    _36_ = 11
   end
-  set_font(_35_, true)
+  set_font(_36_, true)
   local raw = tostring(label)
   local inset
   if cursor then
@@ -569,7 +599,8 @@ local function add_21(id)
       logic_sync()
       return toast_21("Evidence added to your file.")
     else
-      return toast_21("Evidence is not available yet.")
+      local lock = logic_request("why_locked", {evidence = id}, known_evidence(id))
+      return toast_21(((lock and lock.ok and lock.locked and lock.reason_title) or "Evidence is not available yet."))
     end
   else
     return nil
@@ -593,6 +624,14 @@ local function known_ink_vars()
   for _, item in ipairs(evidence_data) do
     vars[item.id] = has_3f(item.id)
   end
+  for _, c in ipairs(state.contradictions) do
+    if c.statement then
+      vars[("contradicts_" .. c.statement)] = true
+    else
+    end
+  end
+  vars["contradiction_open"] = (#state.contradictions > 0)
+  vars["case_proven"] = (state.major_flags.unique_proof == true)
   return vars
 end
 local function hear_from_text_21(text)
@@ -849,36 +888,36 @@ local function suspect_portrait_21(person, x, y, w, h, full_bleed)
   end
 end
 local function nav_21()
-  local function _73_()
+  local function _75_()
     state["screen"] = "evidence"
     return nil
   end
-  add_button("FILE", 20, 36, 60, 20, _73_)
-  local function _74_()
+  add_button("FILE", 20, 36, 60, 20, _75_)
+  local function _76_()
     state["screen"] = "board"
     return nil
   end
-  add_button("BOARD", 85, 36, 60, 20, _74_)
-  local function _75_()
+  add_button("BOARD", 85, 36, 60, 20, _76_)
+  local function _77_()
     state["screen"] = "timeline"
     return nil
   end
-  add_button("TIME", 150, 36, 60, 20, _75_)
-  local function _76_()
+  add_button("TIME", 150, 36, 60, 20, _77_)
+  local function _78_()
     state["screen"] = "accuse"
     return nil
   end
-  add_button("ACCUSE", 215, 36, 60, 20, _76_, "accent")
-  local function _77_()
+  add_button("ACCUSE", 215, 36, 60, 20, _78_, "accent")
+  local function _79_()
     state["screen"] = "pause"
     return nil
   end
-  add_button("MENU", (W - 70), 36, 60, 20, _77_)
-  local function _78_()
+  add_button("MENU", (W - 70), 36, 60, 20, _79_)
+  local function _80_()
     state["screen"] = "investigate"
     return nil
   end
-  add_button("MAP", 280, 36, 60, 20, _78_)
+  add_button("MAP", 280, 36, 60, 20, _80_)
   local tab = (({evidence = 20, evidence_detail = 20, board = 85, proof = 85, theory = 85, timeline = 150, accuse = 215, investigate = 280, location = 280})[state.screen] or nil)
   if tab then
     return hairline_21(tab, 60, (tab + 60), 60, palette.gold)
@@ -918,13 +957,13 @@ local function load_state_21()
     state["heard_statements"] = parsed.heard_statements
     state["inferences"] = (parsed.inferences or {})
     state["contradictions"] = parsed.contradictions
-    local _82_
+    local _84_
     if (parsed.contradiction == true) then
-      _82_ = true
+      _84_ = true
     else
-      _82_ = false
+      _84_ = false
     end
-    state["contradiction"] = _82_
+    state["contradiction"] = _84_
     state["inferred_facts"] = parsed.inferred_facts
     state["conversation_branches"] = parsed.conversation_branches
     state["hypotheses"] = parsed.hypotheses
@@ -970,17 +1009,17 @@ local function draw_title()
   text_21("The iced americano at 7:22", 60, 72, 620, "left", palette.ink)
   set_font(13, true)
   text_21("I was called at 19:42. The cup was still warm.", 60, 137, 600, "left", palette.muted)
-  local function _85_()
+  local function _87_()
     state["screen"] = "case_select"
     return nil
   end
-  add_button("Open file", 60, 180, 130, 32, _85_, "accent")
+  add_button("Open file", 60, 180, 130, 32, _87_, "accent")
   add_button("Continue", 200, 180, 110, 32, load_state_21)
-  local function _86_()
+  local function _88_()
     state["screen"] = "settings"
     return nil
   end
-  add_button("Settings", 320, 180, 90, 32, _86_)
+  add_button("Settings", 320, 180, 90, 32, _88_)
   set_font(12, true)
   return text_21("CAFE LANTERN / 19:22", 64, 622, 500, "left", palette.gold)
 end
@@ -1001,11 +1040,11 @@ local function draw_case_select()
   text_21("The iced americano at 7:22", 108, 318, 560, "left", palette.ink)
   set_font(13, false)
   text_21("Cafe Lantern. Five names. One cup that should not have killed anyone.", 108, 368, 560, "left", palette.muted)
-  local function _87_()
+  local function _89_()
     state["screen"] = "investigate"
     return nil
   end
-  add_button("Open it", 108, 500, 160, 44, _87_, "accent")
+  add_button("Open it", 108, 500, 160, 44, _89_, "accent")
   set_font(12, true)
   return text_21("One case. Five accounts to check.", 74, 590, 570, "left", palette.muted)
 end
@@ -1038,30 +1077,30 @@ local function draw_investigate()
     hairline_21(ax, ay, ax, (loc.by + 15), palette.gold)
     hairline_21(ax, (loc.by + 15), loc.bx, (loc.by + 15), palette.gold)
     rect_21((ax - 3), (ay - 3), 6, 6, palette.gold)
-    local function _89_()
+    local function _91_()
       return visit_location_21(loc.id)
     end
-    local function _90_()
+    local function _92_()
       if current then
         return "accent"
       else
         return nil
       end
     end
-    add_button(loc.label, loc.bx, loc.by, 168, 30, _89_, _90_())
+    add_button(loc.label, loc.bx, loc.by, 168, 30, _91_, _92_())
   end
   set_font(12, true)
   text_21("Places to visit, not a reconstruction of the crime.", 40, 580, 640, "left", palette.muted)
-  local function _91_()
+  local function _93_()
     state["screen"] = "people"
     return nil
   end
-  add_button("People", 40, 608, 140, 34, _91_, "accent")
-  local function _92_()
+  add_button("People", 40, 608, 140, 34, _93_, "accent")
+  local function _94_()
     state["screen"] = "evidence"
     return nil
   end
-  return add_button("Evidence file", 192, 608, 156, 34, _92_)
+  return add_button("Evidence file", 192, 608, 156, 34, _94_)
 end
 local evidence_per_page = 6
 local function filtered_evidence()
@@ -1102,42 +1141,42 @@ local function draw_evidence()
         text_21(e.sub, 80, (y + 16), 300, "left", palette.muted)
         set_font(11, true)
         text_21(e.tag, 390, (y + 4), 156, "left", palette.gold)
-        local function _94_()
+        local function _96_()
           state["evidence_detail"] = e.id
           state["screen"] = "evidence_detail"
           return nil
         end
-        add_button("Open", 560, y, 70, 30, _94_)
+        add_button("Open", 560, y, 70, 30, _96_)
       end
     end
     if (pages > 1) then
       set_font(11, true)
       text_21(string.format("%d/%d", page, pages), 330, 500, 60, "center", palette.muted)
-      local function _96_()
+      local function _98_()
         state["evidence_page"] = math.max(1, (page - 1))
         return nil
       end
-      add_button("Prev", 250, 495, 70, 26, _96_)
-      local function _97_()
+      add_button("Prev", 250, 495, 70, 26, _98_)
+      local function _99_()
         state["evidence_page"] = math.min(pages, (page + 1))
         return nil
       end
-      add_button("Next", 410, 495, 70, 26, _97_)
+      add_button("Next", 410, 495, 70, 26, _99_)
     else
     end
   end
-  local function _99_()
+  local function _101_()
     state["screen"] = "investigate"
     return nil
   end
-  add_button("Back", 60, 580, 100, 30, _99_)
+  add_button("Back", 60, 580, 100, 30, _101_)
   if state.inferences.mira_departure_conflict then
-    local function _100_()
+    local function _102_()
       state["active_proof"] = "mira_departure_conflict"
       state["screen"] = "proof"
       return nil
     end
-    return add_button("Why Mira fails", 170, 580, 140, 30, _100_, "accent")
+    return add_button("Why Mira fails", 170, 580, 140, 30, _102_, "accent")
   else
     return nil
   end
@@ -1160,11 +1199,11 @@ local function draw_evidence_detail()
   if not found then
     set_font(12, true)
     text_21("No record.", 60, 140, 400, "left", palette.ink)
-    local function _103_()
+    local function _105_()
       state["screen"] = "evidence"
       return nil
     end
-    return add_button("Back", 60, 170, 100, 30, _103_)
+    return add_button("Back", 60, 170, 100, 30, _105_)
   else
     rect_21(60, 110, 600, 420, palette.panel, palette.line)
     set_font(14, true)
@@ -1189,8 +1228,8 @@ local function draw_evidence_detail()
       do
         local p = nil
         for _, pr in ipairs((state.proof_data or {})) do
-          local or_104_ = (pr.fact == found.id) or (pr.fact == target)
-          if not or_104_ then
+          local or_106_ = (pr.fact == found.id) or (pr.fact == target)
+          if not or_106_ then
             local has = false
             for _0, prem in ipairs((pr.premises or {})) do
               if (prem.id == found.id) then
@@ -1198,9 +1237,9 @@ local function draw_evidence_detail()
               else
               end
             end
-            or_104_ = has
+            or_106_ = has
           end
-          if or_104_ then
+          if or_106_ then
             p = pr
           else
           end
@@ -1210,12 +1249,12 @@ local function draw_evidence_detail()
       if proof then
         set_font(12, true)
         text_21(proof.conclusion, 80, 300, 390, "left", palette.ink)
-        local function _107_()
+        local function _109_()
           state["active_proof"] = proof.fact
           state["screen"] = "proof"
           return nil
         end
-        add_button("View proof", 500, 290, 120, 30, _107_, "accent")
+        add_button("View proof", 500, 290, 120, 30, _109_, "accent")
       elseif set_font(12, true) then
         text_21("No proof yet.", 80, 300, 400, "left", palette.muted)
       else
@@ -1223,13 +1262,13 @@ local function draw_evidence_detail()
     end
     do
       local ev = found.id
-      local _109_
+      local _111_
       if state.accusation.evidence[ev] then
-        _109_ = "Remove"
+        _111_ = "Remove"
       else
-        _109_ = "Add"
+        _111_ = "Add"
       end
-      local function _111_()
+      local function _113_()
         if state.accusation.evidence[ev] then
           state.accusation.evidence[ev] = nil
           return nil
@@ -1239,28 +1278,35 @@ local function draw_evidence_detail()
           return nil
         end
       end
-      local function _113_()
+      local function _115_()
         if state.accusation.evidence[ev] then
           return "accent"
         else
           return nil
         end
       end
-      add_button(_109_, 500, 330, 120, 30, _111_, _113_())
+      add_button(_111_, 500, 330, 120, 30, _113_, _115_())
     end
-    local function _114_()
+    local function _116_()
       state["screen"] = "evidence"
       return nil
     end
-    add_button("Back", 60, 580, 100, 30, _114_)
-    local function _115_()
+    add_button("Back", 60, 580, 100, 30, _116_)
+    local function _117_()
       state["screen"] = "theory"
       return nil
     end
-    return add_button("Theory", 170, 580, 100, 30, _115_)
+    return add_button("Theory", 170, 580, 100, 30, _117_)
   end
 end
-local timeline_defs = {{time = "18:52", event = "Sasha arrives to recover her apartment key", requires = {}, status = "claimed"}, {time = "18:58", event = "Dan delivers caf\195\169 supplies", requires = {}, status = "claimed"}, {time = "19:04", event = "Arin visits the night-store pharmacy counter", requires = {"pharmacy_footage"}, status = "confirmed"}, {time = "19:16", event = "Jo opens the west-camera panel", requires = {"panel_log"}, status = "confirmed"}, {time = "19:18", event = "West caf\195\169 camera goes offline", requires = {"camera_log"}, status = "confirmed"}, {time = "19:19", event = "A delivery-bike photo places Dan in the alley", requires = {"delivery_photo"}, status = "confirmed"}, {time = "19:21", event = "Jo sees a familiar person carrying Eli's cup", requires = {"jo_statement"}, status = "claimed"}, {time = "19:22", event = "Mira makes an in-person purchase", requires = {"receipt_004"}, status = "confirmed"}, {time = "19:23", event = "Mira sees Arin beside Eli's booth", requires = {"mira_statement"}, status = "claimed"}, {time = "19:24", event = "Eli drinks the iced americano", requires = {"toxicology"}, status = "confirmed"}, {time = "19:25", event = "Arin's borrowed tag exits through the service door", requires = {"service_log"}, status = "confirmed"}, {time = "19:25-19:28", event = "Eli dies from aconite", requires = {"toxicology"}, status = "confirmed"}, {time = "19:29", event = "West caf\195\169 camera returns", requires = {"camera_log"}, status = "confirmed"}, {time = "19:34", event = "Jo finds Eli", requires = {}, status = "confirmed"}}
+local timeline_defs
+do
+  local out = {}
+  for _, row in ipairs(case_manifest.timeline) do
+    table.insert(out, {time = row.time, event = row.event, status = row.status, requires = (row.requires or {})})
+  end
+  timeline_defs = out
+end
 local function timeline_visible()
   local out = {}
   for _, row in ipairs(timeline_defs) do
@@ -1308,20 +1354,20 @@ local function draw_timeline()
         local y = (136 + ((idx - start) * 56))
         local confirmed = (row.status == "confirmed")
         rect_21(192, (y - 4), 440, 48, palette["paper-light"])
-        local _119_
+        local _121_
         if confirmed then
-          _119_ = palette.green
+          _121_ = palette.green
         else
-          _119_ = palette.panel
+          _121_ = palette.panel
         end
-        local function _121_()
+        local function _123_()
           if confirmed then
             return palette.green
           else
             return palette.dust
           end
         end
-        rect_21(168, (y + 4), 8, 8, _119_, _121_())
+        rect_21(168, (y + 4), 8, 8, _121_, _123_())
         if not confirmed then
           love.graphics.setColor(palette.dust)
           dotted_line_21(176, (y + 8), 192, (y + 8))
@@ -1332,42 +1378,42 @@ local function draw_timeline()
         set_font(12, true)
         text_21(row.event, 204, y, 302, "left", palette.ink)
         set_font(11, true)
-        local function _123_()
+        local function _125_()
           if confirmed then
             return palette.green
           else
             return palette.dust
           end
         end
-        text_21(string.upper(row.status), 516, (y + 4), 104, "right", _123_())
+        text_21(string.upper(row.status), 516, (y + 4), 104, "right", _125_())
       end
     end
     if (pages > 1) then
-      local function _125_()
+      local function _127_()
         state["timeline_page"] = math.max(1, (page - 1))
         return nil
       end
-      add_button("Prev", 250, 500, 70, 26, _125_)
-      local function _126_()
+      add_button("Prev", 250, 500, 70, 26, _127_)
+      local function _128_()
         state["timeline_page"] = math.min(pages, (page + 1))
         return nil
       end
-      add_button("Next", 410, 500, 70, 26, _126_)
+      add_button("Next", 410, 500, 70, 26, _128_)
     else
     end
   end
-  local function _128_()
+  local function _130_()
     state["screen"] = "investigate"
     return nil
   end
-  add_button("Back", 60, 580, 100, 30, _128_)
+  add_button("Back", 60, 580, 100, 30, _130_)
   if state.contradiction then
-    local function _129_()
+    local function _131_()
       state["prev_screen"] = "timeline"
       state["screen"] = "contradiction"
       return nil
     end
-    return add_button("Conflict", 170, 580, 100, 30, _129_, "accent")
+    return add_button("Conflict", 170, 580, 100, 30, _131_, "accent")
   else
     return nil
   end
@@ -1383,17 +1429,17 @@ local function draw_contradiction()
   set_font(11, true)
   text_21("This breaks the alibi. Not the murder.", 80, 190, 500, "left", palette.gold)
   conflict_diagram_21(80, 225)
-  local function _131_()
+  local function _133_()
     state["screen"] = (state.prev_screen or "investigate")
     return nil
   end
-  add_button("Keep looking", 80, 400, 140, 30, _131_, "accent")
-  local function _132_()
+  add_button("Keep looking", 80, 400, 140, 30, _133_, "accent")
+  local function _134_()
     state["active_proof"] = "mira_departure_conflict"
     state["screen"] = "proof"
     return nil
   end
-  return add_button("See proof", 230, 400, 120, 30, _132_)
+  return add_button("See proof", 230, 400, 120, 30, _134_)
 end
 local board_nodes = {{id = "mira_conflict", label = "MIRA", sub = "timeline conflict", x = 210, y = 280, requires = {"receipt_004", "mira_left_1910"}, kind = "contradiction"}, {id = "arin_means", label = "ARIN", sub = "pharmacy / poison", x = 650, y = 220, requires = {"pharmacy_footage"}, kind = "proven"}, {id = "eli", label = "ELI", sub = "victim", x = 650, y = 500, requires = {}, kind = "proven"}, {id = "camera_gap", label = "CAMERA GAP", sub = "19:18 - 19:29", x = 1000, y = 290, requires = {"camera_log"}, kind = "proven"}, {id = "cup_lid", label = "CUP LID", sub = "residue", x = 330, y = 500, requires = {"cup_lid"}, kind = "proven"}, {id = "tape_fiber", label = "TAPE FIBER", sub = "Arin contact", x = 450, y = 360, requires = {"tape_fiber", "cup_lid"}, kind = "proven", alt_requires = {"tape_fiber"}}, {id = "m motive", label = "MOTIVE", sub = "draft email", x = 650, y = 360, requires = {"draft_email"}, kind = "hypothesis"}}
 local function board_visible_nodes()
@@ -1464,16 +1510,16 @@ local function draw_board()
   end
   set_font(12, true)
   text_21("Solid: holds   Dotted: hypothesis   Conflict: incompatible records", 40, 575, 640, "left", palette.muted)
-  local function _139_()
+  local function _141_()
     state["screen"] = "investigate"
     return nil
   end
-  add_button("Map", 40, 608, 100, 32, _139_)
-  local function _140_()
+  add_button("Map", 40, 608, 100, 32, _141_)
+  local function _142_()
     state["screen"] = "theory"
     return nil
   end
-  return add_button("Test a theory", 152, 608, 160, 32, _140_)
+  return add_button("Test a theory", 152, 608, 160, 32, _142_)
 end
 local function proof_for(fact)
   for _, proof in ipairs((state.proof_data or {})) do
@@ -1493,14 +1539,14 @@ local function draw_proof()
   nav_21()
   set_font(12, true)
   text_21((heading .. " / PROOF TRACE"), 40, 84, 600, "left", palette.gold)
-  local function _142_()
+  local function _144_()
     if proof then
       return palette.green
     else
       return palette.line
     end
   end
-  rect_21(60, 112, 600, 100, palette.panel, _142_())
+  rect_21(60, 112, 600, 100, palette.panel, _144_())
   set_font(16, false)
   text_21(((proof and proof.conclusion) or "No proof has been filed for this claim."), 80, 137, 560, "left", palette.ink)
   if proof then
@@ -1531,52 +1577,52 @@ local function draw_proof()
       end
       local y = (248 + (math.floor(((i - start) / 2)) * 78))
       local premise = premises[i]
-      local _146_
+      local _148_
       if right then
-        _146_ = 392
+        _148_ = 392
       else
-        _146_ = 328
+        _148_ = 328
       end
-      hairline_21(_146_, (y + 28), 360, (y + 28), palette.green)
+      hairline_21(_148_, (y + 28), 360, (y + 28), palette.green)
       rect_21(x, y, 268, 58, palette.panel, palette.line)
       set_font(12, true)
       text_21((string.format("%02d / ", i) .. (premise.title or "Filed premise")), (x + 12), (y + 14), 244, "left", palette.ink)
     end
     if (pages > 1) then
-      local function _148_()
+      local function _150_()
         state["proof_page"] = math.max(1, (page - 1))
         return nil
       end
-      add_button("Prev", 400, 514, 74, 28, _148_)
+      add_button("Prev", 400, 514, 74, 28, _150_)
       set_font(12, true)
       text_21(string.format("%d / %d", page, pages), 480, 520, 90, "center", palette.muted)
-      local function _149_()
+      local function _151_()
         state["proof_page"] = math.min(pages, (page + 1))
         return nil
       end
-      add_button("Next", 580, 514, 74, 28, _149_)
+      add_button("Next", 580, 514, 74, 28, _151_)
     else
     end
   else
   end
   set_font(12, true)
-  local _152_
+  local _154_
   if proof then
-    _152_ = "Filed premises support the conclusion above."
+    _154_ = "Filed premises support the conclusion above."
   else
-    _152_ = "Find records before a proof can be traced."
+    _154_ = "Find records before a proof can be traced."
   end
-  text_21(_152_, 60, 568, 600, "left", palette.muted)
-  local function _154_()
+  text_21(_154_, 60, 568, 600, "left", palette.muted)
+  local function _156_()
     state["screen"] = "evidence"
     return nil
   end
-  add_button("Back", 60, 616, 100, 32, _154_)
-  local function _155_()
+  add_button("Back", 60, 616, 100, 32, _156_)
+  local function _157_()
     state["screen"] = "accuse"
     return nil
   end
-  return add_button("Accuse", 172, 616, 100, 32, _155_, "accent")
+  return add_button("Accuse", 172, 616, 100, 32, _157_, "accent")
 end
 local function toggle_accusation_evidence_21(id)
   local mode = state.accusation_mode
@@ -1617,13 +1663,13 @@ end
 local function close_insufficient_21()
   local snapshot = logic_sync()
   if (snapshot and snapshot.ok) then
-    local _160_
+    local _162_
     if state.major_flags.unique_proof then
-      _160_ = "everybody_goes_home"
+      _162_ = "everybody_goes_home"
     else
-      _160_ = "detective"
+      _162_ = "detective"
     end
-    state["ending"] = _160_
+    state["ending"] = _162_
     state["ending_report"] = {alternatives = state.alternatives, unique_solution = state.major_flags.unique_proof}
     state.major_flags["closed_insufficient"] = true
     state["screen"] = "ending"
@@ -1687,14 +1733,14 @@ local function case_structure_21(x, y, w)
     love.graphics.line((x + w + 8), (y + 22), (x + w + 8), ry)
     love.graphics.line((x + w), ry, (x + w + 8), ry)
     rect_21(x, (ry - 9), w, 20, palette["paper-light"], stroke)
-    local function _167_()
+    local function _169_()
       if active then
         return palette.gold
       else
         return palette.muted
       end
     end
-    text_21((row[1] .. " / " .. n), (x + 6), (ry - 4), (w - 12), "left", _167_())
+    text_21((row[1] .. " / " .. n), (x + 6), (ry - 4), (w - 12), "left", _169_())
   end
   return nil
 end
@@ -1710,29 +1756,29 @@ local function theory_map_21(x, y)
     local by = (y + 34 + (r * 40))
     local active = (state.theory.mode == row[2])
     rect_21(bx, by, 94, 30, palette["paper-light"])
-    local function _168_()
+    local function _170_()
       if active then
         return palette.gold
       else
         return stroke
       end
     end
-    love.graphics.setColor(_168_())
+    love.graphics.setColor(_170_())
     dotted_rect_21(bx, by, 94, 30)
-    local _169_
+    local _171_
     if active then
-      _169_ = "> "
+      _171_ = "> "
     else
-      _169_ = "  "
+      _171_ = "  "
     end
-    local function _171_()
+    local function _173_()
       if active then
         return palette.gold
       else
         return palette.muted
       end
     end
-    text_21((_169_ .. row[1]), (bx + 8), (by + 8), 78, "left", _171_())
+    text_21((_171_ .. row[1]), (bx + 8), (by + 8), 78, "left", _173_())
   end
   return nil
 end
@@ -1758,14 +1804,14 @@ local function verdict_chart_21(x, y, w)
     else
     end
     love.graphics.setColor(stroke)
-    local function _173_()
+    local function _175_()
       if good then
         return palette.ink
       else
         return palette.muted
       end
     end
-    text_21((row[1] .. "  " .. status), (x + 30), (ry - 5), (w - 40), "left", _173_())
+    text_21((row[1] .. "  " .. status), (x + 30), (ry - 5), (w - 40), "left", _175_())
   end
   return nil
 end
@@ -1818,71 +1864,71 @@ local function draw_theory()
   text_21("Test a story.", 80, 130, 560, "left", palette.muted)
   if not state.theory.result then
     for i, s in ipairs(suspects) do
-      local function _177_()
+      local function _179_()
         state.theory["suspect"] = s.id
         return nil
       end
-      local function _178_()
+      local function _180_()
         if (state.theory.suspect == s.id) then
           return "accent"
         else
           return nil
         end
       end
-      add_button(s.name, 80, (150 + ((i - 1) * 28)), 180, 24, _177_, _178_())
+      add_button(s.name, 80, (150 + ((i - 1) * 28)), 180, 24, _179_, _180_())
     end
   else
   end
   set_font(14, true)
   text_21(string.upper(tostring(state.theory.suspect)), 300, 155, 200, "left", palette.gold)
-  local function _180_()
+  local function _182_()
     state.theory["mode"] = "evidence"
     return nil
   end
-  local function _181_()
+  local function _183_()
     if (state.theory.mode == "evidence") then
       return "accent"
     else
       return nil
     end
   end
-  add_button("File", 300, 185, 60, 24, _180_, _181_())
-  local function _182_()
+  add_button("File", 300, 185, 60, 24, _182_, _183_())
+  local function _184_()
     state.theory["mode"] = "motive"
     return nil
   end
-  local function _183_()
+  local function _185_()
     if (state.theory.mode == "motive") then
       return "accent"
     else
       return nil
     end
   end
-  add_button("Why", 365, 185, 50, 24, _182_, _183_())
-  local function _184_()
+  add_button("Why", 365, 185, 50, 24, _184_, _185_())
+  local function _186_()
     state.theory["mode"] = "method"
     return nil
   end
-  local function _185_()
+  local function _187_()
     if (state.theory.mode == "method") then
       return "accent"
     else
       return nil
     end
   end
-  add_button("How", 420, 185, 50, 24, _184_, _185_())
-  local function _186_()
+  add_button("How", 420, 185, 50, 24, _186_, _187_())
+  local function _188_()
     state.theory["mode"] = "opportunity"
     return nil
   end
-  local function _187_()
+  local function _189_()
     if (state.theory.mode == "opportunity") then
       return "accent"
     else
       return nil
     end
   end
-  add_button("When", 475, 185, 60, 24, _186_, _187_())
+  add_button("When", 475, 185, 60, 24, _188_, _189_())
   if state.theory.result then
     local lines = theory_report_lines(state.theory.result)
     local per_page = 10
@@ -1898,18 +1944,18 @@ local function draw_theory()
       text_21(line.text, 80, y, 560, "left", (palette[line.tone] or palette.muted))
     end
     if (pages > 1) then
-      local function _188_()
+      local function _190_()
         state["theory_report_page"] = math.max(1, (page - 1))
         return nil
       end
-      add_button("PREV", 250, 500, 72, 28, _188_)
+      add_button("PREV", 250, 500, 72, 28, _190_)
       set_font(10, true)
       text_21(string.format("%d / %d", page, pages), 330, 508, 60, "center", palette.muted)
-      local function _189_()
+      local function _191_()
         state["theory_report_page"] = math.min(pages, (page + 1))
         return nil
       end
-      add_button("NEXT", 410, 500, 72, 28, _189_)
+      add_button("NEXT", 410, 500, 72, 28, _191_)
     else
     end
   else
@@ -1923,46 +1969,46 @@ local function draw_theory()
       if (has_3f(item.id) and (y < 520)) then
         local active = state.theory[state.theory.mode][item.id]
         local label
-        local _191_
+        local _193_
         if active then
-          _191_ = "[x] "
+          _193_ = "[x] "
         else
-          _191_ = "[ ] "
+          _193_ = "[ ] "
         end
-        label = (_191_ .. item.title)
-        local function _193_()
+        label = (_193_ .. item.title)
+        local function _195_()
           return toggle_theory_21(item.id)
         end
-        local function _194_()
+        local function _196_()
           if active then
             return "accent"
           else
             return nil
           end
         end
-        add_button(label, 300, y, 300, 18, _193_, _194_())
+        add_button(label, 300, y, 300, 18, _195_, _196_())
         y = (y + 20)
       else
       end
     end
   end
   add_button("Test this story", 300, 560, 140, 36, evaluate_theory_21, "accent")
-  local function _197_()
+  local function _199_()
     state["screen"] = "accuse"
     return nil
   end
-  add_button("Take it to accuse", 455, 560, 165, 36, _197_)
-  local function _198_()
+  add_button("Take it to accuse", 455, 560, 165, 36, _199_)
+  local function _200_()
     state["screen"] = "board"
     return nil
   end
-  add_button("Back to the board", 455, 612, 165, 28, _198_)
+  add_button("Back to the board", 455, 612, 165, 28, _200_)
   if state.theory.result then
-    local function _199_()
+    local function _201_()
       state.theory["result"] = nil
       return nil
     end
-    return add_button("Edit theory", 300, 612, 140, 28, _199_)
+    return add_button("Edit theory", 300, 612, 140, 28, _201_)
   else
     return nil
   end
@@ -1974,72 +2020,72 @@ local function draw_accuse()
   set_font(12, true)
   text_21("Who am I naming?", 80, 130, 200, "left", palette.muted)
   for i, s in ipairs(suspects) do
-    local function _201_()
+    local function _203_()
       state["accused"] = s.id
       state.accusation["suspect"] = s.id
       return nil
     end
-    local function _202_()
+    local function _204_()
       if (state.accused == s.id) then
         return "accent"
       else
         return nil
       end
     end
-    add_button(s.name, 80, (150 + ((i - 1) * 32)), 190, 26, _201_, _202_())
+    add_button(s.name, 80, (150 + ((i - 1) * 32)), 190, 26, _203_, _204_())
   end
   set_font(22, false)
   text_21(string.upper(tostring(state.accused)), 300, 155, 300, "left", palette.gold)
   set_font(11, true)
   text_21("File for:", 300, 185, 100, "left", palette.muted)
-  local function _203_()
+  local function _205_()
     state["accusation_mode"] = "evidence"
     return nil
   end
-  local function _204_()
+  local function _206_()
     if (state.accusation_mode == "evidence") then
       return "accent"
     else
       return nil
     end
   end
-  add_button("File", 300, 200, 80, 26, _203_, _204_())
-  local function _205_()
+  add_button("File", 300, 200, 80, 26, _205_, _206_())
+  local function _207_()
     state["accusation_mode"] = "motive"
     return nil
   end
-  local function _206_()
+  local function _208_()
     if (state.accusation_mode == "motive") then
       return "accent"
     else
       return nil
     end
   end
-  add_button("Why", 385, 200, 60, 26, _205_, _206_())
-  local function _207_()
+  add_button("Why", 385, 200, 60, 26, _207_, _208_())
+  local function _209_()
     state["accusation_mode"] = "method"
     return nil
   end
-  local function _208_()
+  local function _210_()
     if (state.accusation_mode == "method") then
       return "accent"
     else
       return nil
     end
   end
-  add_button("How", 450, 200, 60, 26, _207_, _208_())
-  local function _209_()
+  add_button("How", 450, 200, 60, 26, _209_, _210_())
+  local function _211_()
     state["accusation_mode"] = "opportunity"
     return nil
   end
-  local function _210_()
+  local function _212_()
     if (state.accusation_mode == "opportunity") then
       return "accent"
     else
       return nil
     end
   end
-  add_button("When", 515, 200, 60, 26, _209_, _210_())
+  add_button("When", 515, 200, 60, 26, _211_, _212_())
   set_font(11, true)
   text_21("Checked stays.", 300, 230, 300, "left", palette.muted)
   local y = 255
@@ -2047,24 +2093,24 @@ local function draw_accuse()
     if (has_3f(item.id) and (y < 520)) then
       local active = state.accusation[state.accusation_mode][item.id]
       local label
-      local _211_
+      local _213_
       if active then
-        _211_ = "[x] "
+        _213_ = "[x] "
       else
-        _211_ = "[ ] "
+        _213_ = "[ ] "
       end
-      label = (_211_ .. item.title)
-      local function _213_()
+      label = (_213_ .. item.title)
+      local function _215_()
         return toggle_accusation_evidence_21(item.id)
       end
-      local function _214_()
+      local function _216_()
         if active then
           return "accent"
         else
           return nil
         end
       end
-      add_button(label, 300, y, 320, 18, _213_, _214_())
+      add_button(label, 300, y, 320, 18, _215_, _216_())
       y = (y + 20)
     else
     end
@@ -2075,29 +2121,29 @@ local function draw_accuse()
   set_font(11, true)
   text_21("Selections, not proof.", 80, 468, 190, "left", palette.muted)
   add_button("Submit", 300, 535, 120, 32, submit_accusation_21, "accent")
-  local function _216_()
+  local function _218_()
     state["screen"] = "investigate"
     return nil
   end
-  add_button("Keep looking", 430, 535, 120, 32, _216_)
+  add_button("Keep looking", 430, 535, 120, 32, _218_)
   add_button("Not enough", 300, 587, 120, 28, close_insufficient_21)
-  local function _217_()
+  local function _219_()
     state["screen"] = "theory"
     return nil
   end
-  return add_button("Theory", 430, 587, 100, 28, _217_)
+  return add_button("Theory", 430, 587, 100, 28, _219_)
 end
 local function draw_ending()
   panel_fill_21(0, 0, W, H, palette.paper)
   local win = (state.ending == "conviction")
-  local function _218_()
+  local function _220_()
     if win then
       return palette.green
     else
       return palette.rust
     end
   end
-  love.graphics.setColor(_218_())
+  love.graphics.setColor(_220_())
   love.graphics.rectangle("fill", 0, 0, 10, H)
   set_font(13, true)
   text_21("CASE REPORT / 001", 72, 78, 300, "left", palette.gold)
@@ -2110,13 +2156,13 @@ local function draw_ending()
   text_21("CASE AREA / SCHEMATIC", 460, 454, 210, "left", palette.muted)
   if state.ending_report then
     set_font(16, false)
-    local _219_
+    local _221_
     if state.ending_report.unique_solution then
-      _219_ = "No viable alternative remains in the submitted proof."
+      _221_ = "No viable alternative remains in the submitted proof."
     else
-      _219_ = "The visible record still leaves another account open."
+      _221_ = "The visible record still leaves another account open."
     end
-    text_21(_219_, 74, 300, 360, "left", palette.muted)
+    text_21(_221_, 74, 300, 360, "left", palette.muted)
     if state.ending_report.motive then
       text_21(("Motive: " .. tostring(state.ending_report.motive)), 74, 345, 360, "left", palette.ink)
       text_21(("Method: " .. tostring(state.ending_report.method)), 74, 368, 360, "left", palette.ink)
@@ -2133,14 +2179,14 @@ local function draw_ending()
     end
   else
   end
-  local function _225_()
+  local function _227_()
     state["screen"] = "title"
     state["evidence"] = {}
     state["clues"] = 0
     state["ending"] = nil
     return nil
   end
-  return add_button("Back to title", 72, 604, 160, 40, _225_)
+  return add_button("Back to title", 72, 604, 160, 40, _227_)
 end
 local function draw_pause()
   panel_fill_21(0, 0, W, H, palette.paper)
@@ -2148,27 +2194,27 @@ local function draw_pause()
   rect_21(120, 200, 480, 320, palette.panel, palette.line)
   set_font(24, false)
   text_21("Paused. The cafe waits.", 150, 230, 420, "left", palette.ink)
-  local function _226_()
+  local function _228_()
     state["screen"] = "investigate"
     return nil
   end
-  add_button("Go back", 150, 290, 180, 40, _226_, "accent")
-  local function _227_()
+  add_button("Go back", 150, 290, 180, 40, _228_, "accent")
+  local function _229_()
     state["screen"] = "settings"
     return nil
   end
-  add_button("Settings", 150, 335, 180, 40, _227_)
+  add_button("Settings", 150, 335, 180, 40, _229_)
   add_button("Save this file", 150, 380, 180, 40, save_state_21)
-  local function _228_()
+  local function _230_()
     state["screen"] = "load_record"
     return nil
   end
-  add_button("Open a saved file", 150, 425, 180, 40, _228_)
-  local function _229_()
+  add_button("Open a saved file", 150, 425, 180, 40, _230_)
+  local function _231_()
     state["screen"] = "title"
     return nil
   end
-  return add_button("Close and go to title", 150, 470, 220, 40, _229_)
+  return add_button("Close and go to title", 150, 470, 220, 40, _231_)
 end
 local function draw_settings()
   panel_fill_21(0, 0, W, H, palette.paper)
@@ -2178,22 +2224,22 @@ local function draw_settings()
   text_21("Less motion", 130, 220, 300, "left", palette.ink)
   set_font(13, false)
   text_21("I turn off grain and other movement that is not needed.", 130, 245, 440, "left", palette.muted)
-  local _230_
+  local _232_
   if state.settings.reducedMotion then
-    _230_ = "On"
+    _232_ = "On"
   else
-    _230_ = "Off"
+    _232_ = "Off"
   end
-  local function _232_()
+  local function _234_()
     state.settings["reducedMotion"] = not state.settings.reducedMotion
     return nil
   end
-  add_button(_230_, 130, 280, 100, 36, _232_)
-  local function _233_()
+  add_button(_232_, 130, 280, 100, 36, _234_)
+  local function _235_()
     state["screen"] = "pause"
     return nil
   end
-  return add_button("Back", 130, 520, 120, 36, _233_)
+  return add_button("Back", 130, 520, 120, 36, _235_)
 end
 local function draw_load_record()
   panel_fill_21(0, 0, W, H, palette.paper)
@@ -2205,11 +2251,11 @@ local function draw_load_record()
   text_21("Save keeps what I have filed. Load brings it back.", 130, 244, 440, "left", palette.muted)
   add_button("Save now", 130, 300, 140, 36, save_state_21, "accent")
   add_button("Load it", 290, 300, 140, 36, load_state_21)
-  local function _234_()
+  local function _236_()
     state["screen"] = "investigate"
     return nil
   end
-  return add_button("Back to the cafe", 130, 500, 170, 36, _234_)
+  return add_button("Back to the cafe", 130, 500, 170, 36, _236_)
 end
 local function draw_people()
   topbar_21("PEOPLE", "FIVE NAMES")
@@ -2227,16 +2273,16 @@ local function draw_people()
     text_21(s.role, 144, (y + 31), 200, "left", palette.gold)
     set_font(12, true)
     text_21(suspect_note(s.id), 356, (y + 4), 192, "left", palette.muted)
-    local function _235_()
+    local function _237_()
       return open_interview_21(s.id)
     end
-    add_button("Talk", 568, (y + 16), 80, 32, _235_, "accent")
+    add_button("Talk", 568, (y + 16), 80, 32, _237_, "accent")
   end
-  local function _236_()
+  local function _238_()
     state["screen"] = "investigate"
     return nil
   end
-  return add_button("Map", 40, 612, 100, 32, _236_)
+  return add_button("Map", 40, 612, 100, 32, _238_)
 end
 local function restore_dialogue_if_needed_21()
   if ((state.screen == "dialogue") and (not state.ink_text or (state.ink_text == "") or (#state.ink_choices == 0))) then
@@ -2320,51 +2366,51 @@ local function draw_dialogue()
     local pages = math.max(1, math.ceil((#state.ink_choices / page_size)))
     for i = start, finish do
       local choice = state.ink_choices[i]
-      local function _244_()
+      local function _246_()
         return choose_interview_21(choice)
       end
-      add_button(choice.text, 348, (420 + ((i - start) * 30)), 340, 26, _244_)
+      add_button(choice.text, 348, (420 + ((i - start) * 30)), 340, 26, _246_)
     end
     if (pages > 1) then
-      local function _245_()
+      local function _247_()
         state["dialogue_page"] = math.max(1, (state.dialogue_page - 1))
         return nil
       end
-      add_button("Prev", 348, 616, 80, 28, _245_)
+      add_button("Prev", 348, 616, 80, 28, _247_)
       set_font(12, true)
       text_21(string.format("%d / %d", state.dialogue_page, pages), 464, 623, 108, "center", console.muted)
-      local function _246_()
+      local function _248_()
         state["dialogue_page"] = math.min(pages, (state.dialogue_page + 1))
         return nil
       end
-      add_button("Next", 608, 616, 80, 28, _246_)
+      add_button("Next", 608, 616, 80, 28, _248_)
     else
     end
   else
-    local function _248_()
+    local function _250_()
       state["screen"] = "people"
       return nil
     end
-    add_button("Leave", 348, 420, 340, 26, _248_, "accent")
+    add_button("Leave", 348, 420, 340, 26, _250_, "accent")
   end
-  local function _250_()
+  local function _252_()
     state["screen"] = "people"
     return nil
   end
-  add_button("Back", 36, 616, 100, 30, _250_)
+  add_button("Back", 36, 616, 100, 30, _252_)
   hairline_21(32, layout.FOOTER_Y, 688, layout.FOOTER_Y, console.edge)
   set_font(12, true)
   text_21("TAB  Move     ENTER  Select", 36, (layout.FOOTER_Y + 10), 370, "left", console.muted)
   return text_21("ESC  Pause", 508, (layout.FOOTER_Y + 10), 180, "right", console.muted)
 end
 local function change_view_21()
-  local _251_
+  local _253_
   if (state.location_view == 2) then
-    _251_ = 1
+    _253_ = 1
   else
-    _251_ = 2
+    _253_ = 2
   end
-  state["location_view"] = _251_
+  state["location_view"] = _253_
   return nil
 end
 local function draw_location()
@@ -2401,52 +2447,52 @@ local function draw_location()
       local x = (40 + (math.fmod((i - 1), 2) * 328))
       local y = (486 + (math.floor(((i - 1) / 2)) * 38))
       if p then
-        local function _256_()
+        local function _258_()
           return add_21(id)
         end
-        local function _257_()
+        local function _259_()
           if has_3f(id) then
             return "accent"
           else
             return nil
           end
         end
-        add_button(string.format("%02d", i), ((40 + (p[1] * 640)) - 14), ((112 + (p[2] * 352)) - 12), 28, 24, _256_, _257_())
+        add_button(string.format("%02d", i), ((40 + (p[1] * 640)) - 14), ((112 + (p[2] * 352)) - 12), 28, 24, _258_, _259_())
       else
       end
-      local _259_
+      local _261_
       if has_3f(id) then
-        _259_ = "[x] "
+        _261_ = "[x] "
       else
-        _259_ = "[ ] "
+        _261_ = "[ ] "
       end
-      local function _261_()
+      local function _263_()
         return add_21(id)
       end
-      local function _262_()
+      local function _264_()
         if has_3f(id) then
           return "accent"
         else
           return nil
         end
       end
-      add_button((string.format("%02d ", i) .. _259_ .. route[2]), x, y, 312, 30, _261_, _262_())
+      add_button((string.format("%02d ", i) .. _261_ .. route[2]), x, y, 312, 30, _263_, _264_())
     end
   end
   add_button("Change view", 40, 616, 160, 32, change_view_21)
   set_font(12, true)
-  local _263_
+  local _265_
   if (view == 1) then
-    _263_ = "Right view"
+    _265_ = "Right view"
   else
-    _263_ = "Left view"
+    _265_ = "Left view"
   end
-  text_21(("V  /  " .. _263_), 216, 625, 280, "left", palette.muted)
-  local function _265_()
+  text_21(("V  /  " .. _265_), 216, 625, 280, "left", palette.muted)
+  local function _267_()
     state["screen"] = "investigate"
     return nil
   end
-  return add_button("Area map", 552, 616, 128, 32, _265_)
+  return add_button("Area map", 552, 616, 128, 32, _267_)
 end
 local function prepare_capture_21(name)
   local all_evidence = {}
@@ -2579,20 +2625,20 @@ love.load = function()
     end
     if love.filesystem.getInfo(path) then
       local img = love.graphics.newImage(path)
-      local _276_
+      local _278_
       if psx then
-        _276_ = "nearest"
+        _278_ = "nearest"
       else
-        _276_ = "linear"
+        _278_ = "linear"
       end
-      local function _278_()
+      local function _280_()
         if psx then
           return "nearest"
         else
           return "linear"
         end
       end
-      img:setFilter(_276_, _278_())
+      img:setFilter(_278_, _280_())
       if psx then
         art.portrait_crops[id] = love.graphics.newQuad(16, 8, 112, 112, img:getWidth(), img:getHeight())
       else
@@ -2737,7 +2783,7 @@ love.draw = function()
   love.graphics.pop()
   if (capture_name and capture_path and not capture_requested) then
     capture_requested = true
-    local function _297_(image_data)
+    local function _299_(image_data)
       local encoded = image_data:encode("png")
       local file = io.open(capture_path, "wb")
       if file then
@@ -2748,7 +2794,7 @@ love.draw = function()
       capture_done = true
       return nil
     end
-    return love.graphics.captureScreenshot(_297_)
+    return love.graphics.captureScreenshot(_299_)
   else
     return nil
   end
@@ -2854,24 +2900,34 @@ love.keypressed = function(k)
     return nil
   end
 end
-local function _312_()
+local function _314_()
   return focus_index
 end
-local function _313_(v)
+local function _315_(v)
   focus_index = v
   return nil
 end
-local function _314_()
+local function _316_()
   return #focusable
 end
-local function _315_()
+local function _317_()
   return hover_index
 end
-local function _316_(v)
+local function _318_(v)
   hover_index = v
   return nil
 end
-_G["ondacase_focus"] = {get = _312_, set = _313_, count = _314_, hover = _315_, set_hover = _316_}
-_G["ondacase_routes"] = {evidence = {receipt_004 = "cafe", camera_log = "cafe", toxicology = "cafe", cup_lid = "cafe", jo_statement = "cafe", panel_log = "cafe", service_log = "alley", delivery_photo = "alley", pharmacy_footage = "store", draft_email = "apartment", sasha_voicemail = "apartment", tape_fiber = "arin_interview", mira_statement = "mira_interview"}, statements = {mira_left_1910 = "mira_interview", arin_cough_drops = "arin_interview", jo_saw_cup_1921 = "jo_interview", jo_identified_mira = "jo_interview", sasha_never_argued = "sasha_interview", dan_never_inside = "dan_interview", dan_route_recollection = "dan_interview"}}
+_G["ondacase_focus"] = {get = _314_, set = _315_, count = _316_, hover = _317_, set_hover = _318_}
+local route_evidence
+do
+  local out = {tape_fiber = "arin_interview", mira_statement = "mira_interview"}
+  for _, loc in ipairs(case_manifest.locations) do
+    for _0, route in ipairs(loc.evidence) do
+      out[route.id] = loc.id
+    end
+  end
+  route_evidence = out
+end
+_G["ondacase_routes"] = {evidence = route_evidence, statements = {mira_left_1910 = "mira_interview", arin_cough_drops = "arin_interview", jo_saw_cup_1921 = "jo_interview", jo_identified_mira = "jo_interview", sasha_never_argued = "sasha_interview", dan_never_inside = "dan_interview", dan_route_recollection = "dan_interview"}}
 _G["ondacase_runtime"] = {discover = add_21, record_statement = record_statement_21, logic_sync = logic_sync, open_interview = open_interview_21, continue_interview = continue_interview_21, choose_interview = choose_interview_21, apply_ink = apply_ink_21, visit = visit_location_21, toggle_evidence = toggle_accusation_evidence_21, accusation_payload = accusation_payload, submit_accusation = submit_accusation_21, close_insufficient = close_insufficient_21, evaluate_theory = evaluate_theory_21, theory_report_lines = theory_report_lines, save_state = save_state_21, load_state = load_state_21, maybe_contradiction = maybe_trigger_contradiction_21, timeline_visible = timeline_visible, board_visible = board_visible_nodes}
 return nil
