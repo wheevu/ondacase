@@ -1,0 +1,27 @@
+ODDBLOT - FREE Basic Coffee Shop - Asset Pack
+Source: https://oddblotstudios.itch.io/basic-coffee-shop-pack
+Download: BasicCoffeeShop_ODDBLOT.zip (3 MB) via itch.io, retrieved 2026-09-01 via direct file endpoint https://oddblotstudios.itch.io/basic-coffee-shop-pack/file/16898285
+Author: ODDBLOT (Rebecca H)
+License text as distributed in Thanks!.txt inside the zip:
+
+Hey!
+
+Thanks for downloading.
+Hope you find some use for them!
+
+You may use commercially and non-commercially.
+You may edit them however you wish and use them in any of your projects.
+Please don't sell these assets in whole or in part, unless as part of a game, application, (etc.).
+Please, DO NOT use this to train AI.
+
+No credit required but if you'd like to you may credit me as Rebecca H or ODDBLOT.
+
+Thank you! :)
+
+Additional itch page information:
+- Tags: 2D, Asset Pack, basic, coffee, Cozy, Cute, decor, Hand-drawn, hd, No AI
+- Content: No generative AI was used - https://itch.io/game-assets/tag-no-ai
+- File list: 13 assets in 3 sizes (512, 1024, 2048) - we vendor the 512 and selected 1024 variants under assets/cafe/
+- License on page: Free for commercial and non-commercial use. Edit to your liking. Do NOT resell as a stand-alone product. No credit required but appreciated.
+
+Verification: file /tmp/BasicCoffeeShop_ODDBLOT.zip is Zip archive data, PNG image data, 512x512 etc. SHA of zip not recorded due to signed URL expiry, but Thanks!.txt was extracted and reproduced above. Assets drawn in Adobe Fresco with no AI per page.

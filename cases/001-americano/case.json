@@ -1,0 +1,46 @@
+{
+  "id": "001-americano",
+  "title": "The iced americano at 7:22",
+  "victim": "eli",
+  "locations": ["cafe", "alley", "store", "apartment"],
+  "time_basis": "minutes_after_midnight",
+  "timeline": [
+    {"time": "18:52", "minute": 1132, "event": "Sasha arrives to recover her apartment key", "status": "claimed"},
+    {"time": "18:58", "minute": 1138, "event": "Dan delivers café supplies", "status": "claimed"},
+    {"time": "19:04", "minute": 1144, "event": "Arin visits the night-store pharmacy counter", "status": "confirmed"},
+    {"time": "19:16", "minute": 1156, "event": "Jo opens the west-camera panel", "status": "confirmed"},
+    {"time": "19:18", "minute": 1158, "event": "West café camera goes offline", "status": "confirmed"},
+    {"time": "19:19", "minute": 1159, "event": "A delivery-bike photo places Dan in the alley", "status": "confirmed"},
+    {"time": "19:21", "minute": 1161, "event": "Jo sees a familiar person carrying Eli's cup", "status": "claimed"},
+    {"time": "19:22", "minute": 1162, "event": "Mira makes an in-person purchase", "status": "confirmed"},
+    {"time": "19:23", "minute": 1163, "event": "Mira sees Arin beside Eli's booth", "status": "claimed"},
+    {"time": "19:24", "minute": 1164, "event": "Eli drinks the iced americano", "status": "confirmed"},
+    {"time": "19:25", "minute": 1165, "event": "Arin's borrowed tag exits through the service door", "status": "confirmed"},
+    {"time": "19:25-19:28", "start_minute": 1165, "end_minute": 1168, "event": "Eli dies from aconite", "status": "confirmed"},
+    {"time": "19:29", "minute": 1169, "event": "West café camera returns", "status": "confirmed"},
+    {"time": "19:34", "minute": 1174, "event": "Jo finds Eli", "status": "confirmed"}
+  ],
+  "people": [
+    {"id": "mira", "name": "Mira Vale", "age": 31, "role": "Café manager"},
+    {"id": "arin", "name": "Arin Ko", "age": 34, "role": "Food columnist"},
+    {"id": "jo", "name": "Jo Bell", "age": 24, "role": "Barista"},
+    {"id": "sasha", "name": "Sasha Reed", "age": 30, "role": "Eli's ex"},
+    {"id": "dan", "name": "Dan Mott", "age": 27, "role": "Delivery rider"}
+  ],
+  "evidence": [
+    {"id": "receipt_004", "title": "Receipt #004", "status": "confirmed", "supports": ["mira_present_1922", "mira_departure_conflict", "mira_opportunity"]},
+    {"id": "camera_log", "title": "West camera log", "status": "confirmed", "supports": ["camera_gap_confirmed", "mira_opportunity"]},
+    {"id": "toxicology", "title": "Toxicology report", "status": "confirmed", "supports": ["death_window_established", "arin_means", "arin_delivery_method", "arin_opportunity"]},
+    {"id": "pharmacy_footage", "title": "Pharmacy footage", "status": "confirmed", "supports": ["arin_means"]},
+    {"id": "cup_lid", "title": "Cup lid", "status": "confirmed", "supports": ["arin_delivery_method", "arin_contact"]},
+    {"id": "tape_fiber", "title": "Blue tape fiber", "status": "confirmed", "supports": ["arin_contact"]},
+    {"id": "draft_email", "title": "Eli's draft email", "status": "confirmed", "supports": ["arin_motive"]},
+    {"id": "service_log", "title": "Service-door log", "status": "confirmed", "supports": ["arin_opportunity"]},
+    {"id": "mira_statement", "title": "Mira's follow-up statement", "status": "claimed", "supports": ["mira_excluded"]},
+    {"id": "delivery_photo", "title": "Delivery-bike photo and tracker", "status": "confirmed", "supports": ["dan_nearby_1919", "dan_excluded"]},
+    {"id": "sasha_voicemail", "title": "Sasha's voicemail", "status": "confirmed", "supports": ["sasha_excluded"]},
+    {"id": "panel_log", "title": "Till and camera-panel log", "status": "confirmed", "supports": ["jo_opportunity", "jo_excluded"]},
+    {"id": "jo_statement", "title": "Jo's statement", "status": "claimed", "supports": []}
+  ],
+  "endings": ["conviction", "lucky_idiot", "beautiful_theory", "insufficient_evidence", "everybody_goes_home"]
+}

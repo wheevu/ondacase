@@ -1,0 +1,32 @@
+subotai - Suit-and-tie investigators
+Source: https://subotai-khudozhnik.itch.io/suit-and-tie-investigators
+Download: portraits.zip (11 MB) via itch.io, retrieved 2026-09-01 via direct file endpoint https://subotai-khudozhnik.itch.io/suit-and-tie-investigators/file/16093197
+Author: subotai (subotai.illustration@gmail.com)
+Description from itch page:
+
+All sorts of dealings are taking place in the big bustling cities, and those are the characters playing a role in them ; Gang-business, Noir detective stories or supernatural pulp investigations
+
+Prohibition-era, roaring 20's, noir, pulp or simply old-timey characters to play investigators, gangsters or journalists in your games set in an era of classy suits, cigarette smoke, fisticuffs and swinging jazz music ; These were made with Call of Cthulhu in mind, but will mesh well with whatever role playing game set in those times and places.
+
+30 character portraits for suit-and-tie era investigators, to use in your games for illustrations, VTT tokens or character sheets , extracted from public domain photographs.
+
+The portrait are about 1000 px tall, with some variation, in PNG format with transparent background, and sepia-toned
+
+License as stated on itch page and confirmed in comments:
+- Name your own price, free.
+- Content: No generative AI was used - https://itch.io/game-assets/tag-no-ai
+- You may NOT resell the assets as is, or without modifications. (page)
+- In comments 111 days ago, author replies to "are these portraits available for commercial use?" with "They are, yes !" - commercial use allowed.
+- If you use these assets, please message the author at subotai.illustration@gmail.com to let him know.
+
+Public domain source: extracted from public domain photographs, so underlying photos are public domain, framing and sepia treatment by subotai.
+
+We vendor 5 normalized single-file crops under assets/suspects/:
+- mira.png <- lady6.png
+- arin.png <- suit3.png
+- jo.png <- coat2.png
+- sasha.png <- lady3.png
+- dan.png <- photographer2.png
+All retain transparent background and sepia tone, no AI, no modification beyond selection. Original zip contains 30 PNGs in portraits/.
+
+Verification: file /tmp/portraits.zip is Zip archive data, PNG image data 345x1072 etc. No AI tag present.

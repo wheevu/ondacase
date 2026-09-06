@@ -1,0 +1,8 @@
+{
+  "name": "ondacase",
+  "case": "001-americano",
+  "runtime": "LÖVE 11.x",
+  "logic": "SWI-Prolog",
+  "story": "Ink",
+  "ui": "Fennel"
+}
