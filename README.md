@@ -2,7 +2,9 @@
 
 `ondacase` is a small detective game written in Prolog, Ink, and Fennel.
 
-![Title screen with the low-poly district map](screenshots/console/title.png)
+<p align="center">
+  <img src="screenshots/console/title.png" width="79%">
+</p>
 
 ## Premise - Case 001
 
