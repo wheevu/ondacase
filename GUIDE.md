@@ -87,7 +87,7 @@ Prolog owns case truth and progression. Fennel renders. Ink writes dialogue.
 To change the case, edit `case_content.pl` or `case_data.pl`, then run `make manifest` and `make build`.
 `make validate` fails if the checked-in manifest drifts from the generated one.
 
-The runtime talks to Prolog through named JSON operations only. Useful queries beyond discovery and accusation: `case_info`, `timeline`, `available_evidence`, `why_locked`, `perform`, `why_not`, `what_changed`, `alternative_case`, and `board`.
+The runtime talks to Prolog through named JSON operations only. Discovery and accusation sit alongside progression queries (`case_info`, `timeline`, `available_evidence`, `why_locked`, `perform`), explanation queries (`why_not`, `what_changed`, `alternative_case`, `minimal_proof`, `frontier`, `hypothetical`, `why_possible`, `exclusion`, `critical`, `redundant`, `strongest_alternative`, `epistemic`, `impact`), the proof-grounded board graph (`board`), and the narrative director (`director`, `reactions`).
 
 ## Related documents
 

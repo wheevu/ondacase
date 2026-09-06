@@ -17,6 +17,7 @@
     selected_contradiction/4, selected_threshold_gaps/3,
     dimension_requirements/4,
     circular_reasoning/1,
+    exclusion_inference/2,
     player_evidence/1, player_statement/2
 ]).
 
@@ -215,6 +216,12 @@ directly_excluded(mira, mira_excluded) :- engine:infer(mira_excluded).
 directly_excluded(sasha, sasha_excluded) :- engine:infer(sasha_excluded).
 directly_excluded(jo, jo_excluded) :- engine:infer(jo_excluded).
 directly_excluded(dan, dan_excluded) :- engine:infer(dan_excluded).
+
+% Maps each non-culprit to the inference that exonerates them.
+exclusion_inference(mira, mira_excluded).
+exclusion_inference(sasha, sasha_excluded).
+exclusion_inference(jo, jo_excluded).
+exclusion_inference(dan, dan_excluded).
 
 selected_directly_excluded(mira, Selected, mira_excluded) :- subset([mira_statement, cup_lid, tape_fiber], Selected).
 selected_directly_excluded(sasha, Selected, sasha_excluded) :- subset([sasha_voicemail, toxicology], Selected).

@@ -542,6 +542,169 @@ test(named_api_covers_new_operations) :-
     api:request(what_changed, toxicology, consequences(toxicology, Derivable, _)),
     assertion(member(death_window_established, Derivable)).
 
+test(minimal_proof_sets_name_transitive_leaves) :-
+    case:clear_player,
+    case:minimal_proof_sets(arin_means, [Leaves]),
+    assertion(Leaves == [evidence(pharmacy_footage), evidence(toxicology)]).
+
+test(frontier_lists_single_gap_conclusions) :-
+    case:clear_player,
+    case:discover_evidence(toxicology),
+    case:frontier(Entries),
+    once(member(frontier(arin_means, evidence(pharmacy_footage)), Entries)).
+
+test(hypothetical_infer_leaves_state_untouched) :-
+    case:clear_player,
+    case:discover_evidence(toxicology),
+    case:hypothetical_infer([pharmacy_footage], [], arin_means),
+    assertion(\+ case:player_evidence(pharmacy_footage)),
+    assertion(\+ case:infer(arin_means)).
+
+test(hypothetical_accusation_reports_assumed_argument) :-
+    complete_case,
+    case:hypothetical_accusation(arin, [], result(Evaluation, Selected)),
+    Evaluation = evaluation(_, _, ending(conviction), _, _, _, _),
+    length(Selected, 9).
+
+test(why_possible_explains_open_suspects) :-
+    case:clear_player,
+    case:discover_evidence(receipt_004),
+    case:why_possible(mira, Reasons),
+    assertion(member(unexcluded, Reasons)),
+    assertion(member(case_open, Reasons)).
+
+test(exclusion_proof_blocks_then_proves) :-
+    case:clear_player,
+    case:exclusion_proof(sasha, blocked(Missing)),
+    assertion(Missing \= []),
+    complete_inventory,
+    case:exclusion_proof(sasha, proved(Proof)),
+    Proof = proof(sasha_excluded, _, _).
+
+test(verdict_critical_matches_core_evidence) :-
+    findall(Id, case:verdict_critical(Id), Critical),
+    sort(Critical, Sorted),
+    assertion(Sorted == [cup_lid, draft_email, pharmacy_footage, service_log, tape_fiber, toxicology]).
+
+test(verdict_redundant_keeps_conviction) :-
+    findall(Id, case:verdict_redundant(Id), Redundant),
+    assertion(member(delivery_photo, Redundant)),
+    core_evidence(Core),
+    forall(member(Id, Redundant), \+ memberchk(Id, Core)).
+
+test(ranked_alternatives_orders_by_support) :-
+    case:clear_player,
+    discover_all([receipt_004, camera_log, toxicology]),
+    case:ranked_alternatives(arin, [rank(First, _)|_]),
+    assertion(First == mira).
+
+test(epistemic_status_tracks_investigation) :-
+    case:clear_player,
+    case:epistemic_status(epistemic(fresh, none)),
+    case:discover_evidence(toxicology),
+    case:epistemic_status(epistemic(open, evidence(1))),
+    case:clear_player,
+    case:discover_evidence(receipt_004),
+    case:record_statement(mira_left_1910),
+    case:epistemic_status(epistemic(conflicted, 1)),
+    complete_case,
+    case:epistemic_status(epistemic(proven, arin_case_proven)).
+
+test(evidence_impact_reports_gains_triggers_unlocks) :-
+    case:clear_player,
+    case:record_statement(mira_left_1910),
+    case:evidence_impact(receipt_004, impact(Gains, Triggers, Unlocks)),
+    assertion(member(mira_present_1922, Gains)),
+    assertion(member(contradiction(mira_left_1910, receipt_004), Triggers)),
+    assertion(member(mira_statement, Unlocks)).
+
+test(board_graph_edges_carry_provenance) :-
+    complete_inventory,
+    case:board_graph(Graph),
+    Graph = graph(Nodes, Edges),
+    assertion(length(Nodes, 7)),
+    once(member(edge(evidence(toxicology), inference(death_window_established), supports, true), Edges)),
+    once(member(edge(statement(mira_left_1910), evidence(receipt_004), contradicts, true), Edges)),
+    once(member(edge(inference(_), suspect(_), excludes, true), Edges)).
+
+test(director_grounds_confrontations_in_contradictions) :-
+    case:clear_player,
+    case:available_topics(mira, EarlyTopics),
+    assertion(EarlyTopics == [claim(mira_left_1910)]),
+    case:reaction_state(mira, open),
+    case:discover_evidence(receipt_004),
+    case:record_statement(mira_left_1910),
+    case:confrontation_grounds(mira, mira_left_1910, receipt_004, purchase_requires_presence),
+    case:reaction_state(mira, cornered),
+    case:available_topics(mira, LateTopics),
+    assertion(member(confront(mira_left_1910), LateTopics)),
+    case:interview_yield(mira, yield([], [mira_left_1910])).
+
+test(server_minimal_proof_and_frontier_json) :-
+    complete_inventory,
+    user:dispatch(_{operation:"minimal_proof", fact:"arin_means"}, ProofResp),
+    assertion(ProofResp.ok == true),
+    assertion(length(ProofResp.proof_set, 2)),
+    case:clear_player,
+    case:discover_evidence(toxicology),
+    user:dispatch(_{operation:"frontier"}, FrontierResp),
+    assertion(FrontierResp.ok == true),
+    once((member(Entry, FrontierResp.frontier),
+        Entry.inference == arin_means, Entry.missing.id == pharmacy_footage)).
+
+test(server_hypothetical_and_why_possible_json) :-
+    case:clear_player,
+    case:discover_evidence(toxicology),
+    user:dispatch(_{operation:"hypothetical", suspect:"arin", evidence:["pharmacy_footage"]}, HypResp),
+    assertion(HypResp.ok == true),
+    assertion(HypResp.result.sufficient_evidence == false),
+    user:dispatch(_{operation:"why_possible", suspect:"mira"}, WhyResp),
+    assertion(WhyResp.viable == true),
+    assertion(member(unexcluded, WhyResp.reasons)).
+
+test(server_exclusion_and_ranking_json) :-
+    complete_inventory,
+    user:dispatch(_{operation:"exclusion", suspect:"sasha"}, ExclResp),
+    assertion(ExclResp.status == excluded),
+    assertion(is_dict(ExclResp.proof)),
+    user:dispatch(_{operation:"strongest_alternative", suspect:"arin"}, RankResp),
+    assertion(RankResp.ok == true),
+    assertion(length(RankResp.ranked, 4)).
+
+test(server_epistemic_impact_director_json) :-
+    case:clear_player,
+    user:dispatch(_{operation:"epistemic"}, EpistemicResp),
+    assertion(EpistemicResp.epistemic.status == fresh),
+    case:discover_evidence(receipt_004),
+    user:dispatch(_{operation:"impact", evidence:"toxicology"}, ImpactResp),
+    assertion(ImpactResp.ok == true),
+    once((member(Gain, ImpactResp.gains), Gain.id == death_window_established)),
+    user:dispatch(_{operation:"director", suspect:"mira"}, DirectorResp),
+    assertion(DirectorResp.reaction == open),
+    user:dispatch(_{operation:"reactions"}, ReactionsResp),
+    assertion(length(ReactionsResp.reactions, 5)).
+
+test(server_board_carries_graph_edges) :-
+    complete_inventory,
+    user:dispatch(_{operation:"board"}, Response),
+    assertion(is_list(Response.edges)),
+    once((member(Edge, Response.edges), Edge.relation == contradicts)).
+
+test(server_critical_and_redundant_json) :-
+    user:dispatch(_{operation:"critical"}, CriticalResp),
+    assertion(CriticalResp.ok == true),
+    assertion(length(CriticalResp.critical, 6)),
+    user:dispatch(_{operation:"redundant"}, RedundantResp),
+    assertion(RedundantResp.ok == true),
+    once((member(Entry, RedundantResp.redundant), Entry.id == delivery_photo)).
+
+test(named_api_covers_analysis_and_director) :-
+    case:clear_player,
+    api:request(frontier, _, frontier(Entries)),
+    assertion(is_list(Entries)),
+    api:request(epistemic_status, _, epistemic(fresh, none)),
+    api:request(reaction_state, mira, reaction(mira, open)).
+
 test(new_operations_do_not_serialize_hidden_truth) :-
     complete_inventory,
     forall(member(Request, [_{operation:"case_info"}, _{operation:"timeline"},

@@ -3,6 +3,7 @@
 :- use_module(case).
 :- use_module(case_data, []).
 :- use_module(manifest).
+:- ensure_loaded(server).
 :- dynamic validation_failure/1.
 :- dynamic manifest_file/1.
 :- prolog_load_context(directory, LogicDirectory),
@@ -41,6 +42,17 @@ main :-
     validate(every_accusation_explained, every_accusation_explained),
     validate(explanation_titles_complete, explanation_titles_complete),
     validate(no_redundant_core_evidence, no_redundant_core_evidence),
+    validate(minimal_proof_sets_exist, minimal_proof_sets_exist),
+    validate(every_exclusion_has_provenance, every_exclusion_has_provenance),
+    validate(early_viability, early_viability),
+    validate(unreachable_evidence_stays_inert, unreachable_evidence_stays_inert),
+    validate(every_record_has_effect, every_record_has_effect),
+    validate(critical_matches_core, critical_matches_core),
+    validate(endings_distinct, endings_distinct),
+    validate(permutation_stability, permutation_stability),
+    validate(no_transitive_truth_exposure, no_transitive_truth_exposure),
+    validate(board_edge_provenance, board_edge_provenance),
+    validate(director_grounding, director_grounding),
     findall(Name, validation_failure(Name), Failures),
     ( Failures == [] -> writeln('validator=pass'), halt(0)
     ; format('validator=FAIL failures=~w~n', [Failures]), halt(1)
@@ -359,3 +371,196 @@ no_redundant_core_evidence :-
     core_evidence(Core),
     forall((member(Dropped, Core), subtract(Core, [Dropped], Remaining)),
         (discover_set(Remaining), \+ case:infer(arin_case_proven))).
+
+% Every provable conclusion has a computable minimal proof set.
+minimal_proof_sets_exist :-
+    discover_everything,
+    forall(case:infer(Name),
+        (case:minimal_proof_sets(Name, [Leaves]), Leaves \= [])).
+
+% Every non-culprit maps to an exclusion rule with a derivable proof.
+every_exclusion_has_provenance :-
+    discover_everything,
+    expected_people(People),
+    forall((member(Suspect, People), Suspect \= arin),
+        (case:exclusion_inference(Suspect, Rule),
+         case:proof(Rule, proof(Rule, _, _)))).
+
+% Non-culprits stay viable in at least one reachable early state.
+early_viability :-
+    discover_set([receipt_004]),
+    expected_people(People),
+    forall((member(Suspect, People), Suspect \= arin),
+        case:possible_suspect(Suspect)).
+
+% Gated records cannot affect deductions before they become reachable.
+unreachable_evidence_stays_inert :-
+    case:clear_player,
+    \+ case:discover_evidence(mira_statement),
+    discover_set([receipt_004]),
+    \+ case:discover_evidence(mira_statement),
+    findall(Inference, case:infer(Inference), [mira_present_1922]),
+    \+ case:contradiction(_, _, _),
+    findall(Proven, case:proof(Proven, _), [mira_present_1922]).
+
+% Every record changes something reachable: inferences, contradictions,
+% statement resolution, timeline visibility, or availability.
+every_record_has_effect :-
+    expected_evidence(Evidence),
+    forall(member(Id, Evidence), record_has_effect(Id)).
+
+record_has_effect(Id) :-
+    discover_everything,
+    state_signature(Full),
+    discover_everything_except(Id),
+    state_signature(Without),
+    Full \= Without.
+
+discover_everything_except(Skipped) :-
+    case:clear_player,
+    expected_evidence(Evidence),
+    forall((member(Id, Evidence), Id \= Skipped),
+        (case:discover_evidence(Id) -> true ; true)),
+    forall(case:statement(Statement), case:record_statement(Statement)),
+    forall((member(Id, Evidence), Id \= Skipped),
+        (case:discover_evidence(Id) -> true ; true)).
+
+state_signature(signature(Inferences, Contradictions, Statuses, TimelineVisible, Available)) :-
+    findall(Inference, case:infer(Inference), RawInferences),
+    sort(RawInferences, Inferences),
+    findall(Statement-Evidence, case:contradiction(Statement, Evidence, _), RawContradictions),
+    sort(RawContradictions, Contradictions),
+    findall(Id-Status, (case:statement(Id), case:statement_status(Id, Status)), RawStatuses),
+    sort(RawStatuses, Statuses),
+    findall(Time, timeline_visible_entry(Time), RawTimeline),
+    sort(RawTimeline, TimelineVisible),
+    findall(Record, case:available_evidence(Record), RawAvailable),
+    sort(RawAvailable, Available).
+
+timeline_visible_entry(Time) :-
+    case:case_timeline(Time, _, _, Requires),
+    forall(member(Requirement, Requires), case:player_evidence(Requirement)).
+
+% Verdict-critical records are exactly the core proof set.
+critical_matches_core :-
+    core_evidence(Core),
+    findall(Id, case:verdict_critical(Id), RawCritical),
+    sort(RawCritical, Critical),
+    sort(Core, SortedCore),
+    Critical == SortedCore.
+
+% Endings are pairwise distinct, and conviction uniquely requires uniqueness.
+endings_distinct :-
+    read_manifest(Dict),
+    get_dict(endings, Dict, Endings),
+    sort(Endings, UniqueEndings),
+    length(Endings, EndingCount), length(UniqueEndings, EndingCount),
+    discover_everything,
+    case:accusation(arin, evaluation(sufficient_evidence(true), unique_solution(true), ending(conviction), _, _, _, _)),
+    core_evidence(Core), discover_set(Core),
+    case:accusation(arin, evaluation(sufficient_evidence(false), unique_solution(false), ending(lucky_idiot), _, _, _, _)).
+
+% Representative discovery orders preserve truth and final uniqueness.
+permutation_stability :-
+    expected_evidence(Evidence),
+    reverse(Evidence, Reversed),
+    finish_order(Evidence),
+    finish_order(Reversed),
+    finish_order([mira_statement, receipt_004, toxicology, camera_log, panel_log,
+        delivery_photo, sasha_voicemail, jo_statement, pharmacy_footage,
+        cup_lid, tape_fiber, draft_email, service_log]).
+
+finish_order(Order) :-
+    case:clear_player,
+    forall(member(Id, Order), (case:discover_evidence(Id) -> true ; true)),
+    forall(case:statement(Statement), case:record_statement(Statement)),
+    forall(member(Id, Order), (case:discover_evidence(Id) -> true ; true)),
+    case:infer(arin_case_proven),
+    case:accusation(arin, evaluation(_, _, ending(conviction), _, _, _, _)),
+    findall(Suspect, case:possible_suspect(Suspect), [arin]).
+
+% No named operation transitively serializes hidden-truth predicates.
+no_transitive_truth_exposure :-
+    discover_everything,
+    forall(export_probe(Request), response_hides_truth(Request)).
+
+export_probe(_{operation:"query_state"}).
+export_probe(_{operation:"case_info"}).
+export_probe(_{operation:"timeline"}).
+export_probe(_{operation:"available_evidence"}).
+export_probe(_{operation:"board"}).
+export_probe(_{operation:"possible_alternatives"}).
+export_probe(_{operation:"epistemic"}).
+export_probe(_{operation:"reactions"}).
+export_probe(_{operation:"frontier"}).
+export_probe(_{operation:"critical"}).
+export_probe(_{operation:"redundant"}).
+export_probe(Request) :-
+    case:inference(Name), atom_string(Name, Fact),
+    member(Request, [_{operation:"proof", fact:Fact}, _{operation:"why_not", fact:Fact},
+        _{operation:"minimal_proof", fact:Fact}]).
+export_probe(Request) :-
+    case:person(Suspect), atom_string(Suspect, Who),
+    member(Request, [_{operation:"accusation", suspect:Who},
+        _{operation:"evaluate_hypothesis", suspect:Who},
+        _{operation:"alternative_case", suspect:Who},
+        _{operation:"exclusion", suspect:Who},
+        _{operation:"why_possible", suspect:Who},
+        _{operation:"director", suspect:Who},
+        _{operation:"strongest_alternative", suspect:Who},
+        _{operation:"hypothetical", suspect:Who, evidence:[]}]).
+export_probe(Request) :-
+    expected_evidence(All), member(Id, All), atom_string(Id, Record),
+    member(Request, [_{operation:"impact", evidence:Record},
+        _{operation:"why_locked", evidence:Record},
+        _{operation:"evaluate_evidence", evidence:Record},
+        _{operation:"what_changed", evidence:Record}]).
+
+% "claims" needs functor form: the player-safe reason claims_stand is fine.
+response_hides_truth(Request) :-
+    user:dispatch(Request, Response),
+    term_string(Response, Text),
+    forall(member(Hidden, ["culprit", "true_event", "evidence_fact", "deception", "ground_truth"]),
+        \+ sub_string(Text, _, _, _, Hidden)),
+    \+ sub_string(Text, _, _, _, "claims(").
+
+% Every board edge is backed by an authored rule, live contradiction, or proof.
+board_edge_provenance :-
+    discover_everything,
+    case:board_graph(Graph), Graph = graph(_, Edges),
+    forall(member(Edge, Edges), edge_has_provenance(Edge)),
+    case:clear_player,
+    case:board_graph(QuietGraph), QuietGraph = graph(_, QuietEdges),
+    forall(member(Quiet, QuietEdges), Quiet \= edge(_, _, contradicts, _)),
+    forall(member(Quiet, QuietEdges), Quiet \= edge(_, _, excludes, _)).
+
+edge_has_provenance(edge(evidence(Evidence), inference(Inference), supports, _)) :-
+    case:inference(Inference, Requirements, _),
+    memberchk(evidence(Evidence), Requirements).
+edge_has_provenance(edge(inference(From), inference(To), derives, _)) :-
+    case:inference(To, Requirements, _),
+    memberchk(inference(From), Requirements).
+edge_has_provenance(edge(statement(Statement), evidence(Evidence), contradicts, true)) :-
+    case:contradiction(Statement, Evidence, _).
+edge_has_provenance(edge(inference(Rule), suspect(_), excludes, true)) :-
+    case:proof(Rule, proof(Rule, _, _)).
+
+% Director outputs reference known statements and live contradictions only.
+director_grounding :-
+    discover_everything,
+    expected_people(People),
+    forall(member(Suspect, People), director_grounded(Suspect)),
+    case:clear_player,
+    discover_set([receipt_004]),
+    case:available_topics(mira, [claim(mira_left_1910)]),
+    case:clear_player,
+    forall(member(Suspect, People), case:reaction_state(Suspect, open)).
+
+director_grounded(Suspect) :-
+    case:available_topics(Suspect, Topics),
+    forall(member(claim(Statement), Topics), case:statement(Statement)),
+    forall(member(confront(Statement), Topics), case:contradiction(Statement, _, _)),
+    case:reaction_state(Suspect, _),
+    case:interview_yield(Suspect, yield(NewClaims, Confrontations)),
+    forall(member(Statement, NewClaims), case:statement(Statement)),
+    forall(member(Statement, Confrontations), case:contradiction(Statement, _, _)).

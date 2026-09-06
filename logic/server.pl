@@ -121,7 +121,110 @@ dispatch_operation(alternative_case, Request, Response) :- !,
     ).
 dispatch_operation(board, _, Response) :- !,
     findall(Node, board_node_dict(Node), Nodes),
-    Response = _{ok:true, nodes:Nodes}.
+    findall(Edge, board_edge_dict_wrapper(Edge), Edges),
+    Response = _{ok:true, nodes:Nodes, edges:Edges}.
+dispatch_operation(minimal_proof, Request, Response) :- !,
+    request_atom(Request, fact, minimal_proof, Fact, Error),
+    ( nonvar(Error) -> Response = Error
+    ; \+ case:inference(Fact) ->
+        error_response(unknown_proof, "Fact is not an authored inference", _{operation:minimal_proof, field:fact, value:Fact}, Response)
+    ; case:minimal_proof_sets(Fact, [Leaves]) ->
+        maplist(requirement_dict, Leaves, LeafDicts),
+        Response = _{ok:true, fact:Fact, proof_set:LeafDicts}
+    ; error_response(proof_unavailable, "No minimal proof set is computable from the current file", _{operation:minimal_proof, field:fact, value:Fact}, Response)
+    ).
+dispatch_operation(frontier, _, Response) :- !,
+    findall(Entry, frontier_entry_dict_wrapper(Entry), Entries),
+    Response = _{ok:true, frontier:Entries}.
+dispatch_operation(hypothetical, Request, Response) :- !,
+    request_atom(Request, suspect, hypothetical, Suspect, SuspectError),
+    ( nonvar(SuspectError) -> Response = SuspectError
+    ; \+ case:person(Suspect) ->
+        error_response(unknown_suspect, "Suspect is not part of this case", _{operation:hypothetical, field:suspect, value:Suspect}, Response)
+    ; request_known_evidence_array(Request, Extra, ExtraError),
+      ( nonvar(ExtraError) -> Response = ExtraError
+      ; case:hypothetical_accusation(Suspect, Extra, result(Evaluation, Selected)) ->
+          result_dict(Evaluation, Selected, Result),
+          Response = _{ok:true, suspect:Suspect, assumed:Extra, result:Result}
+      ; error_response(evaluation_unavailable, "Hypothetical evaluation not available", _{operation:hypothetical, field:suspect, value:Suspect}, Response)
+      )
+    ).
+dispatch_operation(why_possible, Request, Response) :- !,
+    request_atom(Request, suspect, why_possible, Suspect, Error),
+    ( nonvar(Error) -> Response = Error
+    ; \+ case:person(Suspect) ->
+        error_response(unknown_suspect, "Suspect is not part of this case", _{operation:why_possible, field:suspect, value:Suspect}, Response)
+    ; case:why_possible(Suspect, Reasons) ->
+        person_name(Suspect, Name),
+        Response = _{ok:true, suspect:Suspect, name:Name, viable:true, reasons:Reasons}
+    ; person_name(Suspect, Name) ->
+        Response = _{ok:true, suspect:Suspect, name:Name, viable:false, reasons:[]}
+    ).
+dispatch_operation(exclusion, Request, Response) :- !,
+    request_atom(Request, suspect, exclusion, Suspect, Error),
+    ( nonvar(Error) -> Response = Error
+    ; \+ case:person(Suspect) ->
+        error_response(unknown_suspect, "Suspect is not part of this case", _{operation:exclusion, field:suspect, value:Suspect}, Response)
+    ; case:exclusion_proof(Suspect, proved(Proof)) ->
+        proof_dict(Proof, Tree),
+        Response = _{ok:true, suspect:Suspect, status:excluded, proof:Tree}
+    ; case:exclusion_proof(Suspect, blocked(Missing)) ->
+        maplist(requirement_dict, Missing, MissingDicts),
+        Response = _{ok:true, suspect:Suspect, status:unexcluded, missing:MissingDicts}
+    ; error_response(evaluation_unavailable, "Exclusion evaluation not available", _{operation:exclusion, field:suspect, value:Suspect}, Response)
+    ).
+dispatch_operation(critical, _, Response) :- !,
+    findall(Id, case:verdict_critical(Id), RawCritical),
+    sort(RawCritical, Critical),
+    maplist(evidence_ref_dict, Critical, Entries),
+    Response = _{ok:true, critical:Entries}.
+dispatch_operation(redundant, _, Response) :- !,
+    findall(Id, case:verdict_redundant(Id), RawRedundant),
+    sort(RawRedundant, Redundant),
+    maplist(evidence_ref_dict, Redundant, Entries),
+    Response = _{ok:true, redundant:Entries}.
+dispatch_operation(strongest_alternative, Request, Response) :- !,
+    request_atom(Request, suspect, strongest_alternative, Suspect, Error),
+    ( nonvar(Error) -> Response = Error
+    ; \+ case:person(Suspect) ->
+        error_response(unknown_suspect, "Suspect is not part of this case", _{operation:strongest_alternative, field:suspect, value:Suspect}, Response)
+    ; case:ranked_alternatives(Suspect, Ranked) ->
+        maplist(ranked_entry_dict, Ranked, RankedDicts),
+        Response = _{ok:true, suspect:Suspect, ranked:RankedDicts}
+    ; error_response(evaluation_unavailable, "Alternative ranking not available", _{operation:strongest_alternative, field:suspect, value:Suspect}, Response)
+    ).
+dispatch_operation(epistemic, _, Response) :- !,
+    case:epistemic_status(Status),
+    epistemic_dict(Status, Dict),
+    Response = _{ok:true, epistemic:Dict}.
+dispatch_operation(impact, Request, Response) :- !,
+    request_atom(Request, evidence, impact, Id, Error),
+    ( nonvar(Error) -> Response = Error
+    ; \+ case:evidence(Id) ->
+        error_response(unknown_evidence, "Evidence is not part of this case", _{operation:impact, field:evidence, value:Id}, Response)
+    ; case:evidence_impact(Id, impact(Gains, Triggers, Unlocks)) ->
+        maplist(inference_ref_dict, Gains, GainDicts),
+        maplist(impact_contradiction_dict, Triggers, TriggerDicts),
+        maplist(evidence_ref_dict, Unlocks, UnlockDicts),
+        Response = _{ok:true, evidence:Id, gains:GainDicts, triggers:TriggerDicts, unlocks:UnlockDicts}
+    ; error_response(evaluation_unavailable, "Impact evaluation not available", _{operation:impact, field:evidence, value:Id}, Response)
+    ).
+dispatch_operation(director, Request, Response) :- !,
+    request_atom(Request, suspect, director, Suspect, Error),
+    ( nonvar(Error) -> Response = Error
+    ; \+ case:person(Suspect) ->
+        error_response(unknown_suspect, "Suspect is not part of this case", _{operation:director, field:suspect, value:Suspect}, Response)
+    ; case:available_topics(Suspect, Topics),
+      case:interview_yield(Suspect, yield(NewClaims, Confrontations)),
+      case:reaction_state(Suspect, Reaction),
+      maplist(director_topic_dict, Topics, TopicDicts),
+      person_name(Suspect, Name),
+      Response = _{ok:true, suspect:Suspect, name:Name, reaction:Reaction,
+                   topics:TopicDicts, new_claims:NewClaims, confrontations:Confrontations}
+    ).
+dispatch_operation(reactions, _, Response) :- !,
+    findall(Entry, reaction_entry_dict(Entry), Entries),
+    Response = _{ok:true, reactions:Entries}.
 
 do_discover_evidence(Request, Response) :-
     request_atom(Request, evidence, discover_evidence, Id, Error),
@@ -193,6 +296,54 @@ board_node_active(Node, contradiction, visible, true) :-
     member(Statement, Requires),
     case:contradiction(Statement, _, _), !.
 board_node_active(_, _, _, false).
+
+board_edge_dict_wrapper(Dict) :-
+    case:board_graph(Graph),
+    Graph = graph(_, Edges),
+    member(Edge, Edges),
+    board_edge_dict(Edge, Dict).
+
+board_edge_dict(edge(From, To, Relation, Active),
+        _{from:FromDict, to:ToDict, relation:Relation, active:Active}) :-
+    board_endpoint_dict(From, FromDict),
+    board_endpoint_dict(To, ToDict).
+
+board_endpoint_dict(evidence(Id), _{type:evidence, id:Id}).
+board_endpoint_dict(statement(Id), _{type:statement, id:Id}).
+board_endpoint_dict(inference(Id), _{type:inference, id:Id}).
+board_endpoint_dict(suspect(Id), _{type:suspect, id:Id}).
+
+frontier_entry_dict_wrapper(Dict) :-
+    case:frontier(Entries),
+    member(frontier(Inference, Missing), Entries),
+    inference_title(Inference, Title),
+    requirement_dict(Missing, MissingDict),
+    Dict = _{inference:Inference, title:Title, missing:MissingDict}.
+
+ranked_entry_dict(rank(Other, Score), _{suspect:Other, name:Name, score:Score}) :-
+    person_name(Other, Name).
+
+epistemic_dict(epistemic(proven, Threshold), _{status:proven, threshold:Threshold}).
+epistemic_dict(epistemic(conflicted, Count), _{status:conflicted, open_contradictions:Count}).
+epistemic_dict(epistemic(open, evidence(Count)), _{status:open, discovered:Count}).
+epistemic_dict(epistemic(fresh, none), _{status:fresh}).
+
+impact_contradiction_dict(contradiction(Statement, Evidence),
+        _{statement:Statement, statement_title:StatementTitle,
+          evidence:Evidence, evidence_title:EvidenceTitle}) :-
+    case:statement_title(Statement, StatementTitle),
+    case:evidence_title(Evidence, EvidenceTitle).
+
+director_topic_dict(claim(Statement), _{kind:claim, id:Statement, title:Title}) :-
+    case:statement_title(Statement, Title).
+director_topic_dict(confront(Statement), _{kind:confront, id:Statement, title:Title}) :-
+    case:statement_title(Statement, Title).
+
+reaction_entry_dict(_{suspect:Suspect, name:Name, reaction:Reaction}) :-
+    case:person(Suspect),
+    person_name(Suspect, Name),
+    case:reaction_state(Suspect, Reaction).
+
 dispatch_operation(query_state, _, Response) :- !,
     current_inferences(Inferences, InferenceDetails),
     current_contradictions(Contradictions),
@@ -277,6 +428,28 @@ accusation_request(Request, Suspect, Raw, Selected, Error) :-
 
 accusation_has_argument(Request) :-
     member(Field, [motive, method, opportunity, evidence]), get_dict(Field, Request, _), !.
+
+% Hypothetical extras may be undiscovered by design; only shape, known
+% ids, and duplicates are validated here.
+request_known_evidence_array(Request, Ids, Error) :-
+    ( get_dict(evidence, Request, Values) ->
+        ( is_list(Values) -> validate_known_evidence_values(Values, Ids, Error)
+        ; error_response(invalid_type, "Field 'evidence' must be an array", _{operation:hypothetical, field:evidence}, Error)
+        )
+    ; error_response(missing_field, "Required field is missing", _{operation:hypothetical, field:evidence}, Error)
+    ).
+
+validate_known_evidence_values(Values, Ids, Error) :-
+    ( member(Value, Values), \+ string(Value) ->
+        error_response(invalid_type, "Evidence IDs must be strings", _{operation:hypothetical, field:evidence, value:Value}, Error)
+    ; maplist(atom_string, Ids, Values),
+      ( member(Id, Ids), \+ case:evidence(Id) ->
+          error_response(unknown_evidence, "Evidence is not part of this case", _{operation:hypothetical, field:evidence, value:Id}, Error)
+      ; duplicate_id(Ids, Duplicate) ->
+          error_response(duplicate_evidence, "Evidence IDs must not be duplicated", _{operation:hypothetical, field:evidence, value:Duplicate}, Error)
+      ; true
+      )
+    ).
 
 request_evidence_array(_, _, _, Error) :- nonvar(Error), !.
 request_evidence_array(Request, Field, Ids, Error) :-

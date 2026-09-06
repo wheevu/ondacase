@@ -15,16 +15,26 @@
     evidence_meaning/2, consistent/1, circular_reasoning/1,
     available_evidence/1, why_locked/2,
     case_timeline/4, board_node_status/3,
-    why_not/2, what_changed/2, alternative_case/2
+    why_not/2, what_changed/2, alternative_case/2,
+    proof_leaves/2, minimal_proof_sets/2, frontier/1,
+    hypothetical_infer/3, hypothetical_accusation/3,
+    why_possible/2, exclusion_proof/2, exclusion_inference/2,
+    verdict_critical/1, verdict_redundant/1,
+    ranked_alternatives/2, epistemic_status/1, evidence_impact/2,
+    board_graph/1,
+    confrontation_grounds/4, reaction_state/2,
+    interview_yield/2, available_topics/2
 ]).
 
 :- use_module(engine).
+:- use_module(analysis).
+:- use_module(director).
 % Content predicates the engine does not surface, imported for qualified
 % callers. Hidden truth stays out of the export list above.
 :- use_module('../cases/001-americano/case_content', [
     location/1, evidence_title/2, statement_title/2,
     inference/1, statement_status/2, has_supported_status/1,
     statement_semantic/2, evidence_meaning/2, why_locked/2,
-    circular_reasoning/1,
+    circular_reasoning/1, exclusion_inference/2,
     victim/1, true_event/1, evidence_fact/2, claims/3, deception/2
 ]).
